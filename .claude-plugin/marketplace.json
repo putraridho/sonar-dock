@@ -1,0 +1,5 @@
+{
+  "name": "sonar-dock",
+  "owner": { "name": "Ridho Putra" },
+  "plugins": [{ "name": "sonar-dock", "source": "./" }]
+}
