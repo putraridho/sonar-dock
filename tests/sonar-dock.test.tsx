@@ -189,6 +189,16 @@ describe('the AI core', () => {
     for (const a of ['idle', 'thinking', 'tool', 'responding'] as const) {
       expect(drawCore(80, 123_456, a, 'bash', 'light', 'Thinking', '5-hour 86%').length).toBe(80 * CORE_ROWS * 3)
     }
+    // A new state enters on the right while the old one keeps its color on the left.
+    const now = 100_000
+    const mixed = drawCore(80, now, 'tool', 'bash', 'dark', '', '', [
+      { at: 0, activity: 'thinking', kind: '' },
+      { at: now - 500, activity: 'tool', kind: 'bash' },
+    ])
+    const hues = (w: Uint32Array, col: number) => [0, 1, 2].map(r => w[(r * 80 + col) * 3 + 1]).filter(h => h !== 0x01000000)
+    const allTool = drawCore(80, now, 'tool', 'bash', 'dark', '', '')
+    expect(hues(mixed, 5)).not.toEqual(hues(allTool, 5))
+    expect(hues(mixed, 75)).toEqual(hues(allTool, 75))
     const one = encodeCells(drawVoiceprint(8, seedOf('first reply'), 'dark'))
     const two = encodeCells(drawVoiceprint(8, seedOf('second reply'), 'dark'))
     expect(one === two).toBe(false)

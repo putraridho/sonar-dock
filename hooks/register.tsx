@@ -19,7 +19,7 @@ import {
   toolHex,
   toolKind,
 } from './radar'
-import type { Activity, Mode } from './radar'
+import type { Activity, CoreSpan, Mode } from './radar'
 import type { Blip } from './radar'
 
 const PANE = 'sonar-dock'
@@ -544,6 +544,17 @@ function sceneNow(): number {
   sceneAt = t
   return sceneT
 }
+
+// What the core has been doing, so the trace keeps past states as it scrolls.
+const coreHistory: CoreSpan[] = []
+function coreSpans(t: number): readonly CoreSpan[] {
+  const last = coreHistory[coreHistory.length - 1]
+  const kind = activity === 'tool' ? activityKind : ''
+  if (!last || last.activity !== activity || last.kind !== kind) coreHistory.push({ at: t, activity, kind })
+  // The widest band shows about 8 s of trace; older states have scrolled off.
+  while (coreHistory.length > 1 && coreHistory[1]!.at <= t - 10_000) coreHistory.shift()
+  return coreHistory
+}
 let activityKind = 'other'
 let activityNote = ''
 let usageNote = ''
@@ -652,7 +663,8 @@ export const register: Register = on => {
       if (bandId === null || bandColumns === 0) return
       if (activity === 'idle' && ++coreTick % 4 !== 0) return
       const [label, note] = coreLabel()
-      const cells = encodeCells(drawCore(bandColumns, sceneNow(), activity, activityKind, currentMode, label, note))
+      const t = sceneNow()
+      const cells = encodeCells(drawCore(bandColumns, t, activity, activityKind, currentMode, label, note, coreSpans(t)))
       void $.ui.blit({ requestId: bandId, key: 'core', cells }).then(r => {
         if (r.deny) bandId = null
       })
@@ -853,7 +865,8 @@ export const register: Register = on => {
     bandId = e.requestId
     bandColumns = Math.max(30, Math.min(160, e.props.bodyColumns))
     const [label, note] = coreLabel()
-    const cells = encodeCells(drawCore(bandColumns, sceneNow(), activity, activityKind, await read($, mode), label, note))
+    const t = sceneNow()
+    const cells = encodeCells(drawCore(bandColumns, t, activity, activityKind, await read($, mode), label, note, coreSpans(t)))
     return <Raster key="core" columns={bandColumns} rows={CORE_ROWS} cells={cells} />
   })
 

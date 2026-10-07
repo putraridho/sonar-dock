@@ -478,9 +478,12 @@ function smooth(x: number): number {
   return x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x)
 }
 
+// The trace moves 1 sample per this many ms, so sample x entered on the right this long ago.
+const CORE_MS_PER_SAMPLE = 25
+
 // The trace's height at sample `x` of `n`, -1 to 1, at time `t`: the panel's SIGNAL, per state.
 export function coreSignal(x: number, n: number, t: number, activity: Activity): number {
-  const u = x + t / 25 // the trace scrolls right to left
+  const u = x + t / CORE_MS_PER_SAMPLE // the trace scrolls right to left
   const edge = smooth(x / (n * 0.04)) * smooth((n - 1 - x) / (n * 0.04))
   let v: number
   if (activity === 'thinking') {
@@ -493,12 +496,16 @@ export function coreSignal(x: number, n: number, t: number, activity: Activity):
     const burst = (((u % 70) + 70) % 70) - 35
     v += Math.exp(-(burst * burst) / 10) * Math.sin(u * 0.9) * 1.1
   } else {
-    const p = ((t / 2600) % 1.4) * n - 0.2 * n
-    const d = (x - p) / (n * 0.035)
-    v = 0.04 * Math.sin(u * 0.09) + Math.exp(-d * d) * Math.sin(x * 0.5) * 0.45
+    // A slow heartbeat that rides the trace like the other states.
+    const beat = (((u % 160) + 160) % 160) - 80
+    const d = beat / (n * 0.035)
+    v = 0.04 * Math.sin(u * 0.09) + Math.exp(-d * d) * Math.sin(u * 0.5) * 0.45
   }
   return Math.max(-1, Math.min(1, v)) * edge
 }
+
+// A state the core was in from `at` on, in the same clock as drawCore's `now`.
+export type CoreSpan = { at: number; activity: Activity; kind: string }
 
 export function drawCore(
   columns: number,
@@ -508,11 +515,13 @@ export function drawCore(
   mode: Mode,
   label: string,
   note: string,
+  history: readonly CoreSpan[] = [],
 ): Uint32Array {
   const P = PALETTES[mode]
   const rows = CORE_ROWS
-  const color =
-    activity === 'tool' ? (P.tools[kind] ?? P.tools.other!) : activity === 'idle' ? P.accent : CLAUDE_ORANGE[mode]
+  const colorOf = (a: Activity, k: string) =>
+    a === 'tool' ? (P.tools[k] ?? P.tools.other!) : a === 'idle' ? P.accent : CLAUDE_ORANGE[mode]
+  const color = colorOf(activity, kind)
   const labelWidth = Math.max(label.length, note.length) + 3
   const room = Math.max(8, columns - labelWidth)
   const W = room * 2
@@ -528,9 +537,18 @@ export function drawCore(
   const mid = (H - 1) / 2
   const amp = H / 2 - 0.6
   for (let x = 0; x < W; x += 4) plot(x, mid, 0.18) // the zero line, faint
+  // Each sample keeps the state it was drawn in as it scrolls left; new states enter on the right.
+  // `history` runs oldest first and ends with the current state; without it the whole trace is the current one.
+  const spans: readonly CoreSpan[] = history.length > 0 ? history : [{ at: -Infinity, activity, kind }]
+  const hue = new Uint32Array(W)
+  let span = 0
   let prev: number | null = null
   for (let x = 0; x < W; x++) {
-    const y = mid - coreSignal(x, W, now, activity) * amp
+    const entered = now - (W - 1 - x) * CORE_MS_PER_SAMPLE
+    while (span < spans.length - 1 && spans[span + 1]!.at <= entered) span++
+    const s = spans[span]!
+    hue[x] = colorOf(s.activity, s.kind)
+    const y = mid - coreSignal(x, W, now, s.activity) * amp
     const fresh = 0.35 + 0.65 * (x / (W - 1)) // newest at the right, brightest
     if (prev !== null) {
       const steps = Math.max(1, Math.ceil(Math.abs(y - prev) * 2))
@@ -554,7 +572,8 @@ export function drawCore(
       }
       const o = (row * columns + col) * 3
       out[o] = bits ? 0x2800 + bits : 0x20
-      out[o + 1] = bits ? (best < 0.2 ? mix(P.screen, P.grid, 0.7) : mix(P.screen, color, P.floor + (1 - P.floor) * best)) : DEFAULT
+      const c = col < room ? hue[col * 2 + 1]! : color
+      out[o + 1] = bits ? (best < 0.2 ? mix(P.screen, P.grid, 0.7) : mix(P.screen, c, P.floor + (1 - P.floor) * best)) : DEFAULT
       out[o + 2] = DEFAULT
     }
   }
