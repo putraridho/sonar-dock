@@ -24,7 +24,7 @@ import type { Blip } from './radar'
 
 const PANE = 'sonar-dock'
 const BOOT_DONE = 99
-const FRAME_MS = 66
+const FRAME_MS = 33
 
 const log = atom({ plugin: 'sonar-dock', key: 'log' } as const, [])
 const stats = atom({ plugin: 'sonar-dock', key: 'stats' } as const, {
@@ -532,6 +532,18 @@ const SHIMMER_COLUMNS = 28
 
 // The AI core above the prompt: what it shows, and where it is mounted.
 let activity: Activity = 'idle'
+let lastNow = 0
+
+// The radar and the core run on a scene clock that slows to 0.4× while idle.
+const IDLE_SPEED = 0.4
+let sceneAt = Date.now()
+let sceneT = sceneAt
+function sceneNow(): number {
+  const t = Date.now()
+  sceneT += (t - sceneAt) * (activity === 'idle' ? IDLE_SPEED : 1)
+  sceneAt = t
+  return sceneT
+}
 let activityKind = 'other'
 let activityNote = ''
 let usageNote = ''
@@ -616,20 +628,31 @@ export const register: Register = on => {
     noteUsage(first)
     await update($, reserves, () => first)
 
+    // The radar and the core draw at 30 fps; idle, at 7.5 fps with the scene slowed to match.
+    let radarTick = 0
     $.clock.every(FRAME_MS, () => {
       if (!isMounted || size.columns === 0) return
-      const cells = encodeCells(drawRadar(size.columns, size.rows, Date.now(), blips, threatLevel, currentMode))
+      if (activity === 'idle' && ++radarTick % 4 !== 0) return
+      const cells = encodeCells(drawRadar(size.columns, size.rows, sceneNow(), blips, threatLevel, currentMode))
       void $.ui.blit({ requestId: PANE, key: 'radar', cells }).then(r => {
         if (r.deny) isMounted = false
       })
     })
 
-    $.clock.every(1000, () => void update($, now, () => Date.now()))
+    // Idle, the pane shows only hours and minutes: redraw it once a minute, not every second.
+    $.clock.every(1000, () => {
+      const t = Date.now()
+      if (activity === 'idle' && Math.floor(t / 60_000) === Math.floor(lastNow / 60_000)) return
+      lastNow = t
+      void update($, now, () => t)
+    })
 
-    $.clock.every(50, () => {
+    let coreTick = 0
+    $.clock.every(FRAME_MS, () => {
       if (bandId === null || bandColumns === 0) return
+      if (activity === 'idle' && ++coreTick % 4 !== 0) return
       const [label, note] = coreLabel()
-      const cells = encodeCells(drawCore(bandColumns, Date.now(), activity, activityKind, currentMode, label, note))
+      const cells = encodeCells(drawCore(bandColumns, sceneNow(), activity, activityKind, currentMode, label, note))
       void $.ui.blit({ requestId: bandId, key: 'core', cells }).then(r => {
         if (r.deny) bandId = null
       })
@@ -729,7 +752,7 @@ export const register: Register = on => {
       kind,
       isFailed: false,
       glyph: style.glyph,
-      born: Date.now(),
+      born: sceneNow(),
       isLive: true,
       tag: tagOf(detail),
     }
@@ -825,7 +848,7 @@ export const register: Register = on => {
     bandId = e.requestId
     bandColumns = Math.max(30, Math.min(160, e.props.bodyColumns))
     const [label, note] = coreLabel()
-    const cells = encodeCells(drawCore(bandColumns, Date.now(), activity, activityKind, await read($, mode), label, note))
+    const cells = encodeCells(drawCore(bandColumns, sceneNow(), activity, activityKind, await read($, mode), label, note))
     return <Raster key="core" columns={bandColumns} rows={CORE_ROWS} cells={cells} />
   })
 
@@ -1257,7 +1280,7 @@ export const register: Register = on => {
     let radar = <T color={C.mute}>The radar draws in the terminal.</T>
     if (e.surface === 'terminal') {
       const { Raster } = $.ui.resolve(e)
-      const cells = encodeCells(drawRadar(size.columns, size.rows, Date.now(), blips, level, m))
+      const cells = encodeCells(drawRadar(size.columns, size.rows, sceneNow(), blips, level, m))
       radar = <Raster key="radar" columns={size.columns} rows={size.rows} cells={cells} />
     }
 

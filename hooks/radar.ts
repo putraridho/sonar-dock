@@ -343,14 +343,6 @@ export function drawRadar(
     write(x, row, tag, mix(SCREEN, colorOf(spot.blip), Math.max(P.floor + 0.15, 0.55) + 0.45 * spot.heat))
   }
 
-  // Compass bearings around the rim.
-  const ccol = Math.round(cx / 2)
-  const crow = Math.round(cy / 4)
-  write(ccol - 1, Math.round((cy - R - 5.5) / 4), '000', LABEL)
-  write(ccol - 1, Math.round((cy + R + 5.5) / 4), '180', LABEL)
-  write(Math.round((cx + R + 6) / 2), crow, '090', LABEL)
-  write(Math.round((cx - R - 6) / 2) - 3, crow, '270', LABEL)
-
   // Readouts in the margins, where the scope leaves room.
   const scopeLeft = Math.floor((cx - R - 8) / 2)
   if (scopeLeft >= 9) {
