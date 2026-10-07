@@ -658,21 +658,26 @@ export const register: Register = on => {
       })
     })
 
-    $.clock.every(70, () => {
+    // The chat redraws at 30 fps, and only while something on it animates.
+    $.clock.every(FRAME_MS, () => {
       if (!isAnimating) return
       isAnimating = false
       $.ui.invalidate('ui.render')
     })
 
-    $.clock.every(FLOW_SAMPLE_MS, () => void rollFlow())
-
-    $.clock.every(80, () => {
+    // The stream meter only changes when a sample lands, so it redraws then.
+    $.clock.every(FLOW_SAMPLE_MS, () => {
+      rollFlow()
+      if (spinners.size === 0) return
+      const cells = encodeCells(drawMeter(PULSE_COLUMNS, flow, spinnerKind, currentMode))
       for (const id of spinners) {
-        const cells = encodeCells(drawMeter(PULSE_COLUMNS, flow, spinnerKind, currentMode))
         void $.ui.blit({ requestId: id, key: 'pulse', cells }).then(r => {
           if (r.deny) spinners.delete(id)
         })
       }
+    })
+
+    $.clock.every(FRAME_MS, () => {
       for (const id of shimmering) {
         const cells = encodeCells(drawShimmer(SHIMMER_COLUMNS, Date.now(), running.get(id) ?? 'other', currentMode))
         void $.ui.blit({ requestId: id, key: 'shimmer', cells }).then(r => {
