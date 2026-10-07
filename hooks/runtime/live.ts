@@ -5,6 +5,7 @@
 import type { TurnStepChunk } from 'claude-code'
 
 import type { Motion } from '../motion/motion'
+import { plainLine, tailToWidth } from '../text/markdown'
 import type { FlowMeter } from './flow'
 
 /** How long a text piece is held, and so how long it glitches before it settles. */
@@ -18,14 +19,21 @@ export class LiveFeed {
   private index = -1
   private text = ''
   private arrivals: number[] = []
+  private began = 0
 
   get isEmpty(): boolean {
     return this.text === ''
   }
 
+  /** When the text now in the feed began arriving: one reply block's identity. */
+  get startedAt(): number {
+    return this.began
+  }
+
   // Text arriving in content block `index`; a new block starts the feed over.
   add(index: number, text: string, at: number): void {
     if (index !== this.index) this.reset(index)
+    if (this.isEmpty) this.began = at
     this.text += text
     for (let i = 0; i < text.length; i++) this.arrivals.push(at)
     if (this.text.length > KEPT_CHARS) {
@@ -41,15 +49,15 @@ export class LiveFeed {
     return had
   }
 
-  // The last `count` lines, each cut to its last `width` characters (the writing end).
+  // The last `count` lines that have words, as plain text (no markdown marks), each cut to its
+  // last `width` columns: the end being written.
   tail(count: number, width: number, nowMs: number): LiveLine[] {
     const lines: LiveLine[] = []
     let end = this.text.length
     while (lines.length < count && end > 0) {
       const start = this.text.lastIndexOf('\n', end - 1) + 1
-      const from = Math.max(start, end - width)
-      const text = this.text.slice(from, end)
-      lines.unshift({ text, settled: [...text].map((_, i) => Math.min(1, (nowMs - (this.arrivals[from + i] ?? 0)) / HOLD_MS)) })
+      const line = tailToWidth(plainLine(this.text.slice(start, end), this.arrivals.slice(start, end)), width)
+      if (line.text.trim() !== '') lines.unshift({ text: line.text, settled: line.tags.map(at => Math.min(1, (nowMs - at) / HOLD_MS)) })
       end = start - 1
     }
     return lines
