@@ -19,7 +19,7 @@ const LIVE_LINES = 2
 const MIN_COLUMNS = 30
 const MAX_COLUMNS = 160
 
-export function installBand(on: On, { motion, scene, surfaces, live }: Context): void {
+export function installBand(on: On, { motion, scene, surfaces, live, agents }: Context): void {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.surface !== 'terminal' || e.props.hasSurvey || !(await read($, skin))) {
       surfaces.band = null
@@ -31,7 +31,7 @@ export function installBand(on: On, { motion, scene, surfaces, live }: Context):
     const m = await read($, mode)
     const C = SWATCHES[m]
     const t = scene.now()
-    const [label, note] = scene.caption()
+    const [label, note] = scene.caption(agents.workingCount(Date.now()))
     const core = <Raster key="core" columns={columns} rows={CORE_ROWS} cells={encodeCells(drawCore(columns, t, scene.activity, scene.kind, m, label, note, scene.spans(t)))} />
     if (live.isEmpty) return core
 

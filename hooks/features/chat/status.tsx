@@ -4,11 +4,13 @@
 import type { On } from 'claude-code'
 import { atom, read } from 'claude-code'
 
+import type { TurnRecord } from '../../../types'
+
 import { alertText, spinSuffix, spinTag, spinWord } from '../../domain/spin'
 import { ease } from '../../lib/math'
 import { decode } from '../../motion/effects'
 import { encodeCells } from '../../raster/cells'
-import { TIMELINE_LANES, drawMeter, drawTimeline } from '../../raster/strips'
+import { drawMeter, drawTimeline, timelineLanes } from '../../raster/strips'
 import { duration, plural, sweepClock } from '../../text/format'
 import { SWATCHES } from '../../theme/palette'
 import type { Context } from '../../runtime/context'
@@ -27,6 +29,18 @@ const reserves = atom({ plugin: 'sonar-dock', key: 'reserves' } as const, INITIA
 
 /** A turn's record matches its DONE row when their durations agree this closely. */
 const RECORD_MATCH_MS = 1500
+
+// The record a DONE row draws: the one it claimed before, else the closest unclaimed one in time.
+function claimRecord(records: readonly TurnRecord[], claims: Map<string, string>, row: string, durationMs: number): TurnRecord | undefined {
+  const claimed = claims.get(row)
+  if (claimed !== undefined) return records.find(r => r.id === claimed)
+  const taken = new Set(claims.values())
+  const best = records
+    .filter(r => r.id !== undefined && !taken.has(r.id) && Math.abs(r.ms - durationMs) < RECORD_MATCH_MS)
+    .sort((a, b) => Math.abs(a.ms - durationMs) - Math.abs(b.ms - durationMs))[0]
+  if (best?.id !== undefined) claims.set(row, best.id)
+  return best
+}
 
 export function installStatusRows(on: On, { motion, scene, surfaces, flow, turn }: Context): void {
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
@@ -77,7 +91,7 @@ export function installStatusRows(on: On, { motion, scene, surfaces, flow, turn 
     const { Box, Text, Raster } = ui
     const m = await read($, mode)
     const C = SWATCHES[m]
-    const record = (await read($, turns)).find(r => Math.abs(r.ms - e.props.durationMs) < RECORD_MATCH_MS)
+    const record = claimRecord(await read($, turns), surfaces.doneRows, e.requestId, e.props.durationMs)
     const reveal = motion.entrance(e.requestId, 2200)
     const k = ease(reveal)
     const parts = [duration(e.props.durationMs * k)]
@@ -98,13 +112,15 @@ export function installStatusRows(on: On, { motion, scene, surfaces, flow, turn 
     const columns = Math.max(20, Math.min(64, (e.viewport?.columns ?? 100) - GUTTER - 26))
     const edge = e.props.durationMs * k
     const shown = record.calls.filter(c => c.s <= edge).map(c => ({ ...c, e: Math.min(c.e, edge) }))
+    // The lanes come from every call of the turn, so they hold still while the bars draw in.
+    const lanes = timelineLanes(record.calls)
     return (
       <Box flexDirection="column">
         {head}
         <Box flexDirection="row" marginLeft={GUTTER}>
-          <Raster key="timeline" columns={columns} rows={2} cells={encodeCells(drawTimeline(columns, shown, e.props.durationMs, m))} />
+          <Raster key="timeline" columns={columns} rows={Math.ceil(lanes.length / 2)} cells={encodeCells(drawTimeline(columns, shown, e.props.durationMs, m, lanes))} />
           <Box flexDirection="column" marginLeft={2}>
-            {[TIMELINE_LANES.slice(0, 2), TIMELINE_LANES.slice(2)].map(pair => (
+            {pairsOf(lanes).map(pair => (
               <Text>
                 {pair.map(lane => (
                   <Text>
@@ -119,4 +135,11 @@ export function installStatusRows(on: On, { motion, scene, surfaces, flow, turn 
       </Box>
     )
   })
+}
+
+// The legend beside the timeline: its lanes two to a row, as the half blocks stack them.
+function pairsOf<T>(items: readonly T[]): T[][] {
+  const pairs: T[][] = []
+  for (let i = 0; i < items.length; i += 2) pairs.push(items.slice(i, i + 2))
+  return pairs
 }

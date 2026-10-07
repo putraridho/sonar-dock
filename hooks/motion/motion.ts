@@ -2,24 +2,29 @@
 // anything is still moving (so the chat redraws only then).
 
 const AT_LOAD_MS = 2000
+/** Settled entrances remembered, so a row scrolled back into view stays still; the oldest go first. */
+const SETTLED_KEPT = 5000
 
 export class Motion {
   private readonly loadedAt = Date.now()
   private readonly bornAt = new Map<string, number>()
+  private readonly settled = new Set<string>()
   private readonly shown = new Map<string, number>()
   private isDirty = false
 
   // 0 → 1 over `ms` from the first time `id` was drawn; rows already on screen at load stay still.
   entrance(id: string, ms: number): number {
+    if (this.settled.has(id)) return 1
     const t = Date.now()
     let born = this.bornAt.get(id)
     if (born === undefined) {
-      born = t - this.loadedAt < AT_LOAD_MS ? 0 : t
+      if (t - this.loadedAt < AT_LOAD_MS) return this.settle(id)
+      born = t
       this.bornAt.set(id, born)
     }
-    if (born === 0) return 1
     const p = Math.min(1, (t - born) / ms)
-    if (p < 1) this.isDirty = true
+    if (p >= 1) return this.settle(id)
+    this.isDirty = true
     return p
   }
 
@@ -43,6 +48,14 @@ export class Motion {
   // Something on screen is moving without an entrance of its own (a spinner, a stream).
   keepMoving(): void {
     this.isDirty = true
+  }
+
+  // Moves a finished entrance out of the running ones, keeping the newest SETTLED_KEPT.
+  private settle(id: string): 1 {
+    this.bornAt.delete(id)
+    this.settled.add(id)
+    if (this.settled.size > SETTLED_KEPT) this.settled.delete(this.settled.values().next().value!)
+    return 1
   }
 
   // Whether anything moved since the last call: the chat redraws when it did.

@@ -73,21 +73,28 @@ export type PaceOptions = {
 export async function* paceStream(source: AsyncIterable<TurnStepChunk>, options: PaceOptions): AsyncGenerator<TurnStepChunk> {
   const { isHeld, onArrive = () => {}, onTool = () => {}, clock = Date.now } = options
   const held: { chunk: TurnStepChunk; at: number }[] = []
-  for await (const chunk of source) {
-    const t = clock()
-    onArrive(chunk, t)
-    if (!isHeld) {
+  try {
+    for await (const chunk of source) {
+      const t = clock()
+      onArrive(chunk, t)
+      if (!isHeld) {
+        yield chunk
+        continue
+      }
+      if (chunk.kind === 'text') {
+        held.push({ chunk, at: t })
+        while (held.length > 0 && t - held[0]!.at >= HOLD_MS) yield held.shift()!.chunk
+        continue
+      }
+      while (held.length > 0) yield held.shift()!.chunk
+      if (chunk.kind === 'tool') onTool()
       yield chunk
-      continue
     }
-    if (chunk.kind === 'text') {
-      held.push({ chunk, at: t })
-      while (held.length > 0 && t - held[0]!.at >= HOLD_MS) yield held.shift()!.chunk
-      continue
-    }
+  } catch (error) {
+    // The stream broke (an interrupt, a dropped connection): what was held still reaches the
+    // transcript before the error goes on.
     while (held.length > 0) yield held.shift()!.chunk
-    if (chunk.kind === 'tool') onTool()
-    yield chunk
+    throw error
   }
   while (held.length > 0) yield held.shift()!.chunk
 }

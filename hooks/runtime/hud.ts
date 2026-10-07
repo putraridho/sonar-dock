@@ -3,7 +3,9 @@
 import { SHOWN_LEVEL, clampThreat, threatName } from '../domain/threat'
 import { TOOLS } from '../domain/tools'
 import type { ToolKind } from '../domain/tools'
+import { TAU } from '../lib/math'
 import type { Blip } from '../raster/radar'
+import { agentTag } from './agents'
 
 export const PANE = 'sonar-dock'
 
@@ -31,17 +33,18 @@ export class Hud {
     return this.threat
   }
 
-  // A contact for a tool call, somewhere on the scope.
-  addBlip(kind: ToolKind, tag: string, born: number): Blip {
+  // A contact for a tool call: the main loop's anywhere on the scope, each subagent's clustered
+  // at a bearing of its own and tagged with its number.
+  addBlip(kind: ToolKind, tag: string, born: number, agent?: number): Blip {
     const blip: Blip = {
-      angle: Math.random() * Math.PI * 2,
-      radius: 0.2 + Math.random() * 0.72,
+      ...(agent === undefined ? scattered() : clustered(agent)),
       kind,
       isFailed: false,
       glyph: TOOLS[kind].glyph,
       born,
       isLive: true,
-      tag,
+      tag: agent === undefined ? tag : `${agentTag(agent)} ${tag}`,
+      agent,
     }
     this.blips.push(blip)
     if (this.blips.length > MAX_BLIPS) this.blips.shift()
@@ -52,4 +55,15 @@ export class Hud {
     const named = this.threat >= SHOWN_LEVEL ? ` · THREAT ${threatName(this.threat)}` : ''
     return `◉ SONAR DOCK ▸ ${text}${named}`
   }
+}
+
+const GOLDEN = 0.618034
+
+function scattered(): Pick<Blip, 'angle' | 'radius'> {
+  return { angle: Math.random() * TAU, radius: 0.2 + Math.random() * 0.72 }
+}
+
+// Subagent n's bearing, spread by the golden ratio so neighbours sit far apart.
+function clustered(agent: number): Pick<Blip, 'angle' | 'radius'> {
+  return { angle: ((agent * GOLDEN) % 1) * TAU + (Math.random() - 0.5) * 0.5, radius: 0.55 + Math.random() * 0.35 }
 }

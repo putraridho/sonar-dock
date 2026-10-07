@@ -2,6 +2,7 @@
 // slows while idle so the idle animation stays smooth at a lower frame rate.
 
 import { TOOLS } from '../domain/tools'
+import { plural } from '../text/format'
 import type { ToolKind } from '../domain/tools'
 import type { Activity, CoreSpan } from '../raster/core'
 
@@ -59,17 +60,18 @@ export class Scene {
     this.usage = fiveHour === null ? '' : `5-hour ${Math.round(fiveHour)}%`
   }
 
-  // The core's caption: what is happening, and a note beneath it.
-  caption(): [label: string, note: string] {
+  // The core's caption: what is happening, and a note beneath it. Subagents at work take the note.
+  caption(workingAgents = 0): [label: string, note: string] {
+    const note = workingAgents > 0 ? `${plural(workingAgents, 'agent')} working` : this.usage
     switch (this.activity) {
       case 'thinking':
-        return ['Thinking', this.usage]
+        return ['Thinking', note]
       case 'responding':
-        return ['Replying', this.usage]
+        return ['Replying', note]
       case 'tool':
-        return [`Running ${TOOLS[this.kind].noun}`, this.note]
+        return [`Running ${TOOLS[this.kind].noun}`, workingAgents > 0 ? note : this.note]
       case 'idle':
-        return ['Standing by', this.usage]
+        return ['Standing by', note]
     }
   }
 

@@ -1,12 +1,14 @@
 // The dashboard's sections, top to bottom: threat, usage gauges, the activity log, the totals.
 
 import type { LogLine, Reserves, Stats } from '../../../types'
+import { isCall } from '../../domain/calls'
 import { TOOLS, asToolKind } from '../../domain/tools'
 import { ALERT_LEVEL, threatName } from '../../domain/threat'
 import { untilReset, windowName } from '../../domain/usage'
 import { ease } from '../../lib/math'
 import { typed } from '../../motion/effects'
 import type { Motion } from '../../motion/motion'
+import { agentTag } from '../../runtime/agents'
 import { clock, noun, sentenceCase } from '../../text/format'
 import { gaugeColor, mixHex } from '../../theme/palette'
 import type { Mode, Swatch } from '../../theme/palette'
@@ -73,9 +75,10 @@ export function linesThatFit(list: readonly LogLine[], rows: number, width: numb
   const detailW = Math.max(1, width - TIME_W - MARK_W - LABEL_W)
   const shown: LogLine[] = []
   for (let i = list.length - 1, used = 0; i >= 0; i--) {
-    const needs = Math.max(1, Math.ceil(list[i]!.detail.length / detailW))
+    const line = list[i]!
+    const needs = Math.max(1, Math.ceil((line.detail.length + (line.agent === undefined ? 0 : 5)) / detailW))
     if (shown.length > 0 && used + needs > rows) break
-    shown.unshift(list[i]!)
+    shown.unshift(line)
     used += needs
   }
   return shown
@@ -91,7 +94,11 @@ export function ActivityLog({ ui, C, T, lines, width, motion }: Section & { line
         const p = motion.entrance(`log:${line.id}`, 500)
         const enter = ease(p)
         const kind = asToolKind(line.kind)
-        const mark = marks[line.state]
+        // A prompt reads as the person speaking; a call, as its tool (and its subagent, if any).
+        const isAsked = !isCall(line)
+        const mark = isAsked ? { glyph: '›', color: C.accent } : marks[line.state]
+        const label = isAsked ? { word: 'You', color: C.accent } : { word: sentenceCase(TOOLS[kind].noun), color: C.tool(kind) }
+        const via = line.agent === undefined ? '' : `${agentTag(line.agent)} › `
         return (
           <Box flexDirection="row" width={width}>
             <Box width={TIME_W} flexShrink={0}>
@@ -101,10 +108,13 @@ export function ActivityLog({ ui, C, T, lines, width, motion }: Section & { line
               <T color={mixHex(C.screen, mark.color, enter)}>{mark.glyph}</T>
             </Box>
             <Box width={LABEL_W} flexShrink={0}>
-              <T color={mixHex(C.screen, C.tool(kind), enter)}>{sentenceCase(TOOLS[kind].noun)}</T>
+              <T color={mixHex(C.screen, label.color, enter)}>{label.word}</T>
             </Box>
             <Box flexGrow={1} flexShrink={1}>
-              <T color={line.state === 'run' ? C.ink : C.mute}>{typed(line.detail, p)}</T>
+              <T color={isAsked || line.state === 'run' ? C.ink : C.mute}>
+                {via && <T color={C.tool('agent')}>{via}</T>}
+                {typed(line.detail, p)}
+              </T>
             </Box>
           </Box>
         )

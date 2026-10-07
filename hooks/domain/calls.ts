@@ -33,6 +33,24 @@ export function describeCall(input: unknown): string {
   return found.replace(/\s+/g, ' ')
 }
 
+// A prompt as one log line: its text with runs of space and newlines folded.
+export function promptLine(text: string): string {
+  return text.replace(/\s+/g, ' ').trim()
+}
+
+export const PROMPT_KIND = 'prompt'
+
+// Whether the person sent a prompt themselves: typed at the terminal, or through Remote Control.
+// Task notifications, subagent reports, scheduled prompts and peers' messages arrive as prompts too.
+export function isFromPerson(origin: { kind: string }): boolean {
+  return origin.kind === 'composer' || origin.kind === 'bridge'
+}
+
+// A log line that records a tool call, not a prompt.
+export function isCall(line: { kind?: string }): boolean {
+  return line.kind !== PROMPT_KIND
+}
+
 export function isPath(text: string): boolean {
   return /^[\w.-]*\/[\w./-]+$/.test(text)
 }

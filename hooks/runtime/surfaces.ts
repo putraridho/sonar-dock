@@ -16,6 +16,8 @@ export class Surfaces {
   readonly running = new Map<string, ToolKind>()
   /** Running calls whose row shows a shimmer. */
   readonly shimmers = new Set<string>()
+  /** Each DONE row's turn record, by row: claimed once, so two turns of like length never swap. */
+  readonly doneRows = new Map<string, string>()
 
   get isToolRunning(): boolean {
     return this.running.size > 0
@@ -28,5 +30,10 @@ export class Surfaces {
   callEnded(id: string): void {
     this.running.delete(id)
     this.shimmers.delete(id)
+  }
+
+  // A turn's spinners are gone with it.
+  turnEnded(): void {
+    this.spinnerSeenAt.clear()
   }
 }

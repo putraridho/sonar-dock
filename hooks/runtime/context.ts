@@ -1,6 +1,7 @@
 // Everything the features share, made once per module load and handed to each.
 
 import { Motion } from '../motion/motion'
+import { Agents } from './agents'
 import { Appearance } from './appearance'
 import { FlowMeter } from './flow'
 import { Hud } from './hud'
@@ -21,6 +22,7 @@ export type Context = {
   readonly surfaces: Surfaces
   readonly appearance: Appearance
   readonly limits: LimitWarnings
+  readonly agents: Agents
   /** The session's cost when the current turn began. */
   turn: { costAtStart: number | null }
 }
@@ -35,6 +37,7 @@ export function createContext(): Context {
     surfaces: new Surfaces(),
     appearance: new Appearance(),
     limits: new LimitWarnings(),
+    agents: new Agents(),
     turn: { costAtStart: null },
   }
 }

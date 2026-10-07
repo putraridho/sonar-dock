@@ -34,39 +34,62 @@ export function drawVoiceprint(columns: number, seed: number, mode: Mode): Uint3
   return bars(columns, height, THEMES[mode].claude, 0.5, mode)
 }
 
-export type TimelineCall = { s: number; e: number; k: string; f: boolean }
+export type TimelineCall = { s: number; e: number; k: string; f: boolean; a?: number }
 
-/** The timeline's lanes, top to bottom; any other kind rides the last. */
-export const TIMELINE_LANES = [
+/** A lane of the flight recorder: one for each main-thread kind, one per subagent. */
+export type TimelineLane = { noun: string; kind: string; agent?: number }
+
+const KIND_LANES: readonly TimelineLane[] = [
   { noun: 'shell', kind: 'bash' },
   { noun: 'edit', kind: 'edit' },
   { noun: 'read', kind: 'read' },
   { noun: 'other', kind: 'agent' },
-] as const
+]
+const KIND_LANE_OF: Readonly<Record<string, number>> = { bash: 0, edit: 1, read: 2, search: 2 }
+const MAX_AGENT_LANES = 4
 
-const LANE_OF: Readonly<Record<string, number>> = { bash: 0, edit: 1, read: 2, search: 2 }
+// The lanes a turn's calls need: the four main-thread lanes, then one per subagent seen.
+export function timelineLanes(calls: readonly TimelineCall[]): TimelineLane[] {
+  const agents = [...new Set(calls.flatMap(c => (c.a === undefined ? [] : [c.a])))].sort((x, y) => x - y).slice(0, MAX_AGENT_LANES)
+  return [...KIND_LANES, ...agents.map(a => ({ noun: `A${a}`, kind: 'agent', agent: a }))]
+}
+
+function laneOf(lanes: readonly TimelineLane[], call: TimelineCall): number | undefined {
+  if (call.a === undefined) return KIND_LANE_OF[call.k] ?? KIND_LANES.length - 1
+  const i = lanes.findIndex(l => l.agent === call.a)
+  return i === -1 ? undefined : i
+}
+
 const UPPER_HALF = 0x2580 // ▀
 const LOWER_HALF = 0x2584 // ▄
 const DOT = 0x00b7 // ·
 
-// A turn's flight recorder: four lanes in two rows of half blocks, one bar per call.
-export function drawTimeline(columns: number, calls: readonly TimelineCall[], total: number, mode: Mode): Uint32Array {
+// A turn's flight recorder: its lanes in pairs, two to a row of half blocks, one bar per call.
+export function drawTimeline(
+  columns: number,
+  calls: readonly TimelineCall[],
+  total: number,
+  mode: Mode,
+  lanes: readonly TimelineLane[] = timelineLanes(calls),
+): Uint32Array {
   const P = THEMES[mode]
-  const lanes: number[][] = TIMELINE_LANES.map(() => new Array(columns).fill(0))
+  const bars: number[][] = lanes.map(() => new Array(columns).fill(0))
   const span = Math.max(1, total)
   for (const c of calls) {
-    const lane = LANE_OF[c.k] ?? TIMELINE_LANES.length - 1
+    const lane = laneOf(lanes, c)
+    if (lane === undefined) continue
     const color = c.f ? P.red : toolColor(P, c.k)
     const x0 = Math.max(0, Math.min(columns - 1, Math.floor((c.s / span) * columns)))
     const x1 = Math.max(x0, Math.min(columns - 1, Math.ceil((c.e / span) * columns) - 1))
-    for (let x = x0; x <= x1; x++) lanes[lane]![x] = color
+    for (let x = x0; x <= x1; x++) bars[lane]![x] = color
   }
   const track = mix(P.screen, P.grid, 0.5)
-  const cells = new CellGrid(columns, 2)
-  for (let row = 0; row < 2; row++) {
+  const rows = Math.ceil(lanes.length / 2)
+  const cells = new CellGrid(columns, rows)
+  for (let row = 0; row < rows; row++) {
     for (let x = 0; x < columns; x++) {
-      const top = lanes[row * 2]![x]!
-      const bottom = lanes[row * 2 + 1]![x]!
+      const top = bars[row * 2]?.[x] ?? 0
+      const bottom = bars[row * 2 + 1]?.[x] ?? 0
       const i = cells.at(x, row)
       if (top && bottom) cells.set(i, UPPER_HALF, top, bottom)
       else if (top) cells.set(i, UPPER_HALF, top)

@@ -4,8 +4,11 @@ export type LogLine = {
   tool: string
   detail: string
   state: 'run' | 'ok' | 'err'
+  /** A tool kind, or 'prompt' for a line that records what the person asked. */
   kind?: string
   end?: number
+  /** The subagent that made the call, by its number in the session (1, 2, ...); absent on the main loop. */
+  agent?: number
 }
 
 export type Stats = {
@@ -24,11 +27,14 @@ export type Reserves = {
 }
 
 export type TurnRecord = {
+  /** The turn's id, as turn.complete gave it. */
+  id?: string
   ms: number
   ops: number
   errors: number
   fiveHour: number | null
-  calls: { s: number; e: number; k: string; f: boolean }[]
+  /** Each call: start and end (ms into the turn), kind, failed, and the subagent that made it. */
+  calls: { s: number; e: number; k: string; f: boolean; a?: number }[]
 }
 
 declare module 'claude-code' {

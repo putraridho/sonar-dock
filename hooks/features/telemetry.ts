@@ -5,7 +5,7 @@ import type { EngineInterface, On } from 'claude-code'
 import { atom, read, update } from 'claude-code'
 
 import type { LogLine, Stats, TurnRecord } from '../../types'
-import { describeCall, tagOf } from '../domain/calls'
+import { PROMPT_KIND, describeCall, isCall, isFromPerson, promptLine, tagOf } from '../domain/calls'
 import { DANGER_STEP, FAILURE_FLOOR, detectThreat, threatName } from '../domain/threat'
 import { TOOLS, toolKind } from '../domain/tools'
 import type { ToolKind } from '../domain/tools'
@@ -27,11 +27,15 @@ const STATUS_DETAIL = 40
 const RECORDED_CALLS = 120
 
 export function installTelemetry(on: On, ctx: Context): void {
-  const { scene, hud, surfaces } = ctx
+  const { scene, hud, surfaces, agents } = ctx
 
   on('prompt.submit', async ($, e, next) => {
     const at = Date.now()
     await update($, stats, s => ({ ...s, turns: s.turns + 1, turnStartedAt: at }))
+    if (isFromPerson(e.origin)) {
+      const asked: LogLine = { id: `prompt:${at}`, at, tool: 'YOU', detail: promptLine(e.text), state: 'ok', kind: PROMPT_KIND }
+      await update($, log, list => [...list, asked].slice(-LOG_LIMIT))
+    }
     ctx.turn.costAtStart = (await read($, reserves)).costUsd
     scene.think()
     $.ui.status(hud.statusText('ENGAGED'))
@@ -41,16 +45,21 @@ export function installTelemetry(on: On, ctx: Context): void {
   on('tool.call', async ($, e, next) => {
     const kind = toolKind(e.tool)
     const detail = describeCall(e)
+    const tag = tagOf(detail)
     const id = e.tool_use_id
+    const agent = agents.numberOf(e.agentId)
     surfaces.callStarted(id, kind)
-    scene.toolStarted(kind, tagOf(detail))
-    const blip = hud.addBlip(kind, tagOf(detail), scene.now())
-    if (kind === 'bash') await raiseAlarm($, ctx, detail)
-    await update($, log, list => [...list, { id, at: Date.now(), tool: TOOLS[kind].tag, detail, state: 'run', kind } satisfies LogLine].slice(-LOG_LIMIT))
+    agents.callStarted(agent, Date.now())
+    scene.toolStarted(kind, tag)
+    const blip = hud.addBlip(kind, tag, scene.now(), agent)
+    // The command itself, not the description given for it: a calm description can hide a rm -rf.
+    if (e.tool === 'Bash') await raiseAlarm($, ctx, e.command)
+    await update($, log, list => [...list, { id, at: Date.now(), tool: TOOLS[kind].tag, detail, state: 'run', kind, agent } satisfies LogLine].slice(-LOG_LIMIT))
     $.ui.status(hud.statusText(`${TOOLS[kind].tag} ${fit(detail, STATUS_DETAIL).trim()}`))
 
     const ran = await next(e).finally(() => {
       surfaces.callEnded(id)
+      agents.callEnded(agent, Date.now())
       if (!surfaces.isToolRunning) scene.toolsSettled()
     })
 
@@ -68,12 +77,13 @@ export function installTelemetry(on: On, ctx: Context): void {
     const s = await read($, stats)
     if (s.turnStartedAt !== null) {
       const started = s.turnStartedAt
-      const mine = (await read($, log)).filter(l => l.at >= started)
+      const mine = (await read($, log)).filter(l => l.at >= started && isCall(l))
       if (mine.length > 0) $.ui.toast(`✦ SWEEP COMPLETE ▸ ${Math.round((Date.now() - started) / 1000)}s · ${mine.length} ops · threat ${threatName(hud.level)}`)
-      const record = recordOf(mine, started, e.durationMs, fiveHourPercent(await read($, reserves)))
+      const record = recordOf(e.turnId, mine, started, e.durationMs, fiveHourPercent(await read($, reserves)))
       await update($, turns, all => [...all, record].slice(-TURN_LIMIT))
     }
     await update($, stats, x => ({ ...x, turnStartedAt: null }))
+    surfaces.turnEnded()
     $.ui.status(hud.statusText())
     return next(e)
   })
@@ -100,12 +110,13 @@ function tally(s: Stats, kind: ToolKind, isFailed: boolean, path: unknown): Stat
   }
 }
 
-function recordOf(lines: readonly LogLine[], started: number, ms: number, fiveHour: number | null): TurnRecord {
+function recordOf(id: string, lines: readonly LogLine[], started: number, ms: number, fiveHour: number | null): TurnRecord {
   return {
+    id,
     ms,
     ops: lines.length,
     errors: lines.filter(l => l.state === 'err').length,
     fiveHour,
-    calls: lines.slice(-RECORDED_CALLS).map(l => ({ s: l.at - started, e: (l.end ?? Date.now()) - started, k: l.kind ?? 'other', f: l.state === 'err' })),
+    calls: lines.slice(-RECORDED_CALLS).map(l => ({ s: l.at - started, e: (l.end ?? Date.now()) - started, k: l.kind ?? 'other', f: l.state === 'err', a: l.agent })),
   }
 }

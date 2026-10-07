@@ -31,7 +31,7 @@ export type Ports = {
 }
 
 export function startLoops(io: Ports, ctx: Context): void {
-  const { scene, surfaces, hud, motion, flow, appearance } = ctx
+  const { scene, surfaces, hud, motion, flow, appearance, agents } = ctx
 
   const blit = (requestId: string, key: string, cells: string, onGone: () => void) =>
     void io.blit(requestId, key, cells).then(isShown => {
@@ -58,7 +58,7 @@ export function startLoops(io: Ports, ctx: Context): void {
     const band = surfaces.band
     if (!band) return
     const t = scene.now()
-    const [label, note] = scene.caption()
+    const [label, note] = scene.caption(agents.workingCount(Date.now()))
     const cells = encodeCells(drawCore(band.columns, t, scene.activity, scene.kind, appearance.current, label, note, scene.spans(t)))
     blit(band.id, 'core', cells, () => (surfaces.band = null))
   })

@@ -19,6 +19,8 @@ export type Blip = {
   born: number
   isLive: boolean
   tag?: string
+  /** The subagent that made the call; absent on the main loop. */
+  agent?: number
 }
 
 const BLIP_LIFE_MS = 60_000
