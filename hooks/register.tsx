@@ -917,7 +917,6 @@ export const register: Register = on => {
       <Box
         flexDirection="row"
         marginTop={e.props.isFirstOfReply ? ROW_GAP : BLOCK_GAP}
-        marginLeft={jitter(e.requestId, entrance(`${e.requestId}:text`, Math.min(2800, 1000 + e.props.text.length * 5)))}
       >
         <Box width={GUTTER} flexShrink={0} flexDirection="column">
           {e.props.isFirstOfReply && (
@@ -940,28 +939,9 @@ export const register: Register = on => {
             <Raster key="voiceprint" columns={8} rows={1} cells={encodeCells(drawVoiceprint(8, seedOf(e.props.text), m))} />
           )}
         </Box>
+        {/* The engine streamed this text live, so it lands as it is: no second typing pass. */}
         <Box flexGrow={1} flexShrink={1} flexDirection="column">
-          {(() => {
-            const q = entrance(`${e.requestId}:text`, Math.min(2800, 1000 + e.props.text.length * 5))
-            if (q >= 1) return <Markdown text={e.props.text} />
-            const d = decode(e.props.text, q)
-            return (
-              <Text>
-                <Text color={PANEL[m].ink}>{d.done}</Text>
-                <Text
-                  color={beat() > 0.5 ? PANEL[m].screen : CLAUDE_HEX[m]}
-                  backgroundColor={beat() > 0.5 ? CLAUDE_HEX[m] : undefined}
-                  bold
-                >
-                  {d.hot}
-                </Text>
-                <Text color={CLAUDE_HEX[m]} bold>
-                  {(d.trail ?? '') + d.head}
-                </Text>
-                <Text color={PANEL[m].mute}>{d.ghost}</Text>
-              </Text>
-            )
-          })()}
+          <Markdown text={e.props.text} />
         </Box>
       </Box>
     )
