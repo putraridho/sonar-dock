@@ -4,6 +4,9 @@
 
 import type { TurnStepChunk } from 'claude-code'
 
+import type { Motion } from '../motion/motion'
+import type { FlowMeter } from './flow'
+
 /** How long a text piece is held, and so how long it glitches before it settles. */
 export const HOLD_MS = 450
 const KEPT_CHARS = 600
@@ -97,6 +100,17 @@ export async function* paceStream(source: AsyncIterable<TurnStepChunk>, options:
     throw error
   }
   while (held.length > 0) yield held.shift()!.chunk
+}
+
+// What happens as each chunk arrives: the meter counts it, and held text joins the band's feed,
+// marking the band as moving so the chat redraws it (nothing else would while text streams in).
+export function onArrival(parts: { live: LiveFeed; flow: FlowMeter; motion: Motion }, isHeld: boolean) {
+  return (chunk: TurnStepChunk, at: number): void => {
+    parts.flow.note(charsOf(chunk))
+    if (!isHeld || chunk.kind !== 'text') return
+    parts.live.add(chunk.index, chunk.text, at)
+    parts.motion.keepMoving()
+  }
 }
 
 // Characters a chunk carries, for the stream meter.

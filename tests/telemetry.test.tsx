@@ -1,8 +1,11 @@
 import type { TurnStepChunk, UiOpenResult } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
+import { isRepeatPrompt } from '../hooks/domain/calls'
+import { Motion } from '../hooks/motion/motion'
 import { Agents } from '../hooks/runtime/agents'
-import { paceStream } from '../hooks/runtime/live'
+import { FlowMeter } from '../hooks/runtime/flow'
+import { LiveFeed, onArrival, paceStream } from '../hooks/runtime/live'
 import { drawTimeline, timelineLanes } from '../hooks/raster/strips'
 
 const PANE = {
@@ -86,4 +89,28 @@ test('held text still reaches the transcript when the stream breaks', async () =
   }
   expect(out).toEqual(pieces)
   expect((caught as Error).message).toBe('interrupted')
+})
+
+describe('the band follows the stream', () => {
+  test('held text joins the feed and marks the band as moving; other text only counts', async () => {
+    const live = new LiveFeed()
+    const flow = new FlowMeter(8)
+    const motion = new Motion()
+    const text = { kind: 'text', index: 0, text: 'Hello' } as unknown as TurnStepChunk
+    onArrival({ live, flow, motion }, false)(text, 0)
+    expect(live.isEmpty).toBe(true)
+    expect(motion.takeFrame()).toBe(false)
+    onArrival({ live, flow, motion }, true)(text, 0)
+    expect(live.isEmpty).toBe(false)
+    expect(motion.takeFrame()).toBe(true)
+    expect(Math.max(...flow.roll())).toBeGreaterThan(0)
+  })
+})
+
+test('a prompt seen twice in quick succession is logged once', async () => {
+  const lines = [{ kind: 'prompt', detail: 'who is roman', at: 1000 }]
+  expect(isRepeatPrompt(lines, 'who is roman', 3000)).toBe(true)
+  expect(isRepeatPrompt(lines, 'who is roman', 20_000)).toBe(false)
+  expect(isRepeatPrompt(lines, 'something else', 3000)).toBe(false)
+  expect(isRepeatPrompt([], 'who is roman', 3000)).toBe(false)
 })

@@ -5,7 +5,7 @@ import type { EngineInterface, On } from 'claude-code'
 import { atom, read, update } from 'claude-code'
 
 import type { LogLine, Stats, TurnRecord } from '../../types'
-import { PROMPT_KIND, describeCall, isCall, isFromPerson, promptLine, tagOf } from '../domain/calls'
+import { PROMPT_KIND, describeCall, isCall, isFromPerson, isRepeatPrompt, promptLine, tagOf } from '../domain/calls'
 import { DANGER_STEP, FAILURE_FLOOR, detectThreat, threatName } from '../domain/threat'
 import { TOOLS, toolKind } from '../domain/tools'
 import type { ToolKind } from '../domain/tools'
@@ -31,9 +31,11 @@ export function installTelemetry(on: On, ctx: Context): void {
 
   on('prompt.submit', async ($, e, next) => {
     const at = Date.now()
-    await update($, stats, s => ({ ...s, turns: s.turns + 1, turnStartedAt: at }))
-    if (isFromPerson(e.origin)) {
-      const asked: LogLine = { id: `prompt:${at}`, at, tool: 'YOU', detail: promptLine(e.text), state: 'ok', kind: PROMPT_KIND }
+    const text = promptLine(e.text)
+    const isRepeat = isRepeatPrompt(await read($, log), text, at)
+    if (!isRepeat) await update($, stats, s => ({ ...s, turns: s.turns + 1, turnStartedAt: at }))
+    if (!isRepeat && isFromPerson(e.origin)) {
+      const asked: LogLine = { id: `prompt:${at}`, at, tool: 'YOU', detail: text, state: 'ok', kind: PROMPT_KIND }
       await update($, log, list => [...list, asked].slice(-LOG_LIMIT))
     }
     ctx.turn.costAtStart = (await read($, reserves)).costUsd

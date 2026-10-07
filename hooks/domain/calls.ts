@@ -46,6 +46,15 @@ export function isFromPerson(origin: { kind: string }): boolean {
   return origin.kind === 'composer' || origin.kind === 'bridge'
 }
 
+/** The same prompt again within this long is the same submission, seen twice. */
+const REPEAT_WINDOW_MS = 10_000
+
+// Whether `text` was just logged as a prompt: a hook that runs twice for one submission logs it once.
+export function isRepeatPrompt(lines: readonly { kind?: string; detail: string; at: number }[], text: string, at: number): boolean {
+  const last = [...lines].reverse().find(l => l.kind === PROMPT_KIND)
+  return last !== undefined && last.detail === text && at - last.at < REPEAT_WINDOW_MS
+}
+
 // A log line that records a tool call, not a prompt.
 export function isCall(line: { kind?: string }): boolean {
   return line.kind !== PROMPT_KIND

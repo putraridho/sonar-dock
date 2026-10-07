@@ -5,14 +5,14 @@ import type { On } from 'claude-code'
 import { atom, read } from 'claude-code'
 
 import type { Context } from '../runtime/context'
-import { charsOf, paceStream } from '../runtime/live'
+import { onArrival, paceStream } from '../runtime/live'
 import { INITIAL } from '../runtime/state'
 
 // State this file reads or writes.
 const skin = atom({ plugin: 'sonar-dock', key: 'skin' } as const, INITIAL.skin)
 
 export function installStream(on: On, ctx: Context): void {
-  const { live, flow } = ctx
+  const { live } = ctx
 
   on('turn.step', async function* ($, e, next) {
     const isHeld = e.agentId === undefined && (await read($, skin))
@@ -23,10 +23,7 @@ export function installStream(on: On, ctx: Context): void {
     try {
       yield* paceStream(stream, {
         isHeld,
-        onArrive: (chunk, at) => {
-          flow.note(charsOf(chunk))
-          if (isHeld && chunk.kind === 'text') live.add(chunk.index, chunk.text, at)
-        },
+        onArrive: onArrival(ctx, isHeld),
         onTool: clearBand,
       })
     } finally {
