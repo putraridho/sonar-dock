@@ -434,7 +434,7 @@ function Decrypt(props: {
   const b = beat()
   const Tag = T as unknown as (props: Record<string, unknown>) => never
   return (
-    <Tag bold={bold} wrap="truncate-end">
+    <Tag bold={bold} wrap="wrap">
       <Tag
         color={glow > 0 ? mixHex(color, screen, 0.85 * glow) : color}
         backgroundColor={glow > 0 ? mixHex(screen, hot, 0.85 * glow) : undefined}
@@ -475,7 +475,7 @@ export function mcpLine(tool: string, input: unknown): string {
   const key = keys.find(k => typeof args[k] === 'string' && (args[k] as string).trim() !== '')
   const firstString = Object.values(args).find(v => typeof v === 'string' && v.trim() !== '') as string | undefined
   const arg = (key ? (args[key] as string) : firstString ?? '').replace(/\s+/g, ' ')
-  return [serverName, pretty(toolName), arg.length > 48 ? `${arg.slice(0, 47)}…` : arg].filter(Boolean).join('  ·  ')
+  return [serverName, pretty(toolName), arg].filter(Boolean).join('  ·  ')
 }
 
 // A GitHub-style table: a pipe row followed by a |---|---| separator row.
@@ -972,7 +972,7 @@ export const register: Register = on => {
           {enter < 1 ? (
             <Decrypt T={Text as unknown as TextTag} text={detail} p={enter} color={C.ink} hot={toolHex(m, kind)} screen={C.screen} />
           ) : (
-            <Text color={C.ink} wrap="truncate-end">
+            <Text color={C.ink}>
               {before}
               <Text backgroundColor={mixHex(C.screen, mark.color, 0.35)} color={C.ink} bold>
                 {shine}
@@ -1070,7 +1070,7 @@ export const register: Register = on => {
           <Text color={C.ink}>{`${calls.length} ${groupKind === 'bash' ? (calls.length === 1 ? 'command' : 'commands') : calls.length === 1 ? 'lookup' : 'lookups'}`}</Text>
         </Box>
         <Box flexGrow={1} flexShrink={1} marginLeft={2}>
-          <Text color={C.mute} wrap="truncate-end">
+          <Text color={C.mute}>
             {(() => {
               const d = decode(targets.join('  ·  '), enter)
               return d.done + d.hot + d.head
@@ -1263,6 +1263,15 @@ export const register: Register = on => {
 
     const isEngaged = s.turnStartedAt !== null
     const room = Math.max(3, (e.viewport?.rows ?? 40) - size.rows - 21)
+    // Details wrap in full, so fill the room by wrapped rows, newest first.
+    const detailW = Math.max(1, width - 7 - 3 - LABEL_W)
+    const shown: LogLine[] = []
+    for (let i = list.length - 1, used = 0; i >= 0; i--) {
+      const rows = Math.max(1, Math.ceil(list[i]!.detail.length / detailW))
+      if (shown.length > 0 && used + rows > room) break
+      shown.unshift(list[i]!)
+      used += rows
+    }
     const gw = Math.max(8, Math.min(28, width - LABEL_W - 18))
     const gauges = [
       ...res.limits.map(l => ({
@@ -1326,7 +1335,7 @@ export const register: Register = on => {
         {blank}
         {section('Activity')}
         {list.length === 0 && <T color={C.mute}>Nothing yet</T>}
-        {list.slice(-room).map(line => {
+        {shown.map(line => {
           const enter = entrance(`log:${line.id}`, 500)
           const mark =
             line.state === 'run'
@@ -1346,7 +1355,7 @@ export const register: Register = on => {
                 <T color={mixHex(C.screen, labelColor(line.tool, m) ?? C.mute, ease(enter))}>{toolWord(line.tool)}</T>
               </Box>
               <Box flexGrow={1} flexShrink={1}>
-                <T color={line.state === 'run' ? C.ink : C.mute} wrap="truncate-end">
+                <T color={line.state === 'run' ? C.ink : C.mute}>
                   {typed(line.detail, enter)}
                 </T>
               </Box>
