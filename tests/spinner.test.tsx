@@ -1,8 +1,11 @@
-import type { UiOpenResult } from 'claude-code'
+import type { TurnStepChunk, UiOpenResult } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
-import { drawMeter } from '../hooks/radar'
-import { alertText, sweepClock, noteFlow, rollFlow, spinWord } from '../hooks/register'
+import { alertText, spinWord } from '../hooks/domain/spin'
+import { drawMeter } from '../hooks/raster/strips'
+import { FlowMeter } from '../hooks/runtime/flow'
+import { paceStream } from '../hooks/runtime/live'
+import { sweepClock } from '../hooks/text/format'
 
 describe('spinner words', () => {
   test('holds a word for a while, then moves on through the mode list', async () => {
@@ -59,12 +62,12 @@ test('the spinner is redrawn as a HUD line while the skin is on', async ($, on) 
 
 describe('stream meter', () => {
   test('a sample with streamed text rises, a quiet one stays flat', async () => {
-    for (let i = 0; i < 6; i++) rollFlow()
-    expect(Math.max(...rollFlow())).toBe(0)
-    noteFlow(120)
-    const busy = rollFlow()
+    const meter = new FlowMeter(8)
+    expect(Math.max(...meter.roll())).toBe(0)
+    meter.note(120)
+    const busy = meter.roll()
     expect(busy[busy.length - 1]).toBeGreaterThan(0.9)
-    const quiet = rollFlow()
+    const quiet = meter.roll()
     expect(quiet[quiet.length - 1]).toBe(0)
   })
 
@@ -72,5 +75,59 @@ describe('stream meter', () => {
     const words = drawMeter(6, [0, 0, 0, 0, 0, 1], 'other', 'dark')
     expect(words.length).toBe(6 * 3)
     expect(words[0]).not.toBe(words[5 * 3])
+  })
+})
+
+describe('streamed replies', () => {
+  const chunks = [
+    { kind: 'thinking', index: 0, text: 'hmm' },
+    { kind: 'text', index: 1, text: 'Hello ' },
+    { kind: 'text', index: 1, text: 'world\n' },
+    { kind: 'tool', index: 2, id: 'toolu_1', name: 'Read' },
+    { kind: 'input', index: 2, json: '{}' },
+    { kind: 'text', index: 3, text: 'Done.' },
+  ] as unknown as TurnStepChunk[]
+
+  // A source that logs each pull, so a test sees when chunks leave against when they arrive.
+  async function* source(log: string[]) {
+    for (const c of chunks) {
+      log.push(`in:${c.kind}`)
+      yield c
+    }
+  }
+
+  test('every chunk passes through unchanged and in order, held or not', async () => {
+    for (const isHeld of [false, true]) {
+      const out: TurnStepChunk[] = []
+      for await (const c of paceStream(source([]), { isHeld, clock: () => 0 })) out.push(c)
+      expect(out).toEqual(chunks)
+    }
+  })
+
+  test('held text waits for the hold, and anything else flushes it first', async () => {
+    const log: string[] = []
+    let tools = 0
+    for await (const c of paceStream(source(log), { isHeld: true, onTool: () => tools++, clock: () => 0 })) log.push(`out:${c.kind}`)
+    expect(log).toEqual([
+      'in:thinking', 'out:thinking',
+      'in:text', 'in:text', 'in:tool', 'out:text', 'out:text', 'out:tool',
+      'in:input', 'out:input',
+      'in:text', 'out:text',
+    ])
+    expect(tools).toBe(1)
+  })
+
+  test('text older than the hold leaves as newer text arrives', async () => {
+    let t = 0
+    const out: string[] = []
+    const texts = [0, 1, 2].map(i => ({ kind: 'text', index: 0, text: `p${i}` }) as unknown as TurnStepChunk)
+    async function* slow() {
+      for (const c of texts) {
+        yield c
+        t += 300
+      }
+    }
+    for await (const c of paceStream(slow(), { isHeld: true, clock: () => t })) out.push(`${(c as { text: string }).text}@${t}`)
+    expect(out).toEqual(['p0@600', 'p1@900', 'p2@900'])
   })
 })

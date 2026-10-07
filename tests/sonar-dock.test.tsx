@@ -1,8 +1,18 @@
 import type { UiOpenResult } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
-import { CORE_ROWS, drawCore, drawRadar, drawShimmer, drawTimeline, drawVoiceprint, encodeCells, radarSize, seedOf, toolKind } from '../hooks/radar'
-import { cleanCommand, decode, detectThreat, glint, glitchText, hasMarkdownTable, mcpLine, gaugeColor, limitName, tagOf, untilReset } from '../hooks/register'
+import { cleanCommand, mcpLine, tagOf } from '../hooks/domain/calls'
+import { detectThreat } from '../hooks/domain/threat'
+import { toolKind } from '../hooks/domain/tools'
+import { limitName, untilReset } from '../hooks/domain/usage'
+import { seedOf } from '../hooks/lib/math'
+import { decode, glint, glitchSegments } from '../hooks/motion/effects'
+import { encodeCells } from '../hooks/raster/cells'
+import { CORE_ROWS, drawCore } from '../hooks/raster/core'
+import { drawRadar, radarSize } from '../hooks/raster/radar'
+import { drawShimmer, drawTimeline, drawVoiceprint } from '../hooks/raster/strips'
+import { hasMarkdownTable } from '../hooks/text/format'
+import { gaugeColor } from '../hooks/theme/palette'
 
 const PANE = {
   plugin: 'sonar-dock',
@@ -37,7 +47,7 @@ describe('radar', () => {
   test('packs one triplet per cell, every frame', async () => {
     const { columns, rows } = radarSize(48)
     const blips = [
-      { angle: 1, radius: 0.5, kind: 'bash', isFailed: false, glyph: 'B', born: 1000, isLive: true },
+      { angle: 1, radius: 0.5, kind: 'bash' as const, isFailed: false, glyph: 'B', born: 1000, isLive: true },
     ]
     for (const t of [0, 1000, 1500, 9000]) {
       const words = drawRadar(columns, rows, t, blips, t > 5000 ? 4 : 0, t > 1200 ? 'light' : 'dark')
@@ -214,13 +224,15 @@ describe('motion', () => {
     expect(mid.done.length + mid.hot.length).toBeGreaterThan(mid.done.length)
   })
 
-  test('a landing block glitches its letters only, then settles', async () => {
-    const md = '## Title\n- **bold** `code` [link](https://x.y)'
-    expect(glitchText(md, 1)).toBe(md)
-    const g = glitchText(md, 0, 3)
-    expect(g.length).toBe(md.length)
-    expect(g).not.toBe(md)
-    for (let i = 0; i < md.length; i++) if (!/[A-Za-z0-9]/.test(md[i]!)) expect(g[i]).toBe(md[i])
+  test('a streamed line glitches its fresh letters only, and settles as it ages', async () => {
+    const line = '## Fix: **bold** `x`'
+    const join = (segs: { text: string }[]) => segs.map(x => x.text).join('')
+    const fresh = glitchSegments(line, line.split('').map(() => 0), 3)
+    expect(join(fresh).length).toBe(line.length)
+    expect(fresh.some(x => x.isHot)).toBe(true)
+    for (let i = 0; i < line.length; i++) if (!/[A-Za-z0-9]/.test(line[i]!)) expect(join(fresh)[i]).toBe(line[i])
+    const settled = glitchSegments(line, line.split('').map(() => 1), 3)
+    expect(settled).toEqual([{ text: line, isHot: false }])
   })
 
   test('the glint crosses the line once', async () => {
