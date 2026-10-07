@@ -381,6 +381,22 @@ function jitter(id: string, p: number): number {
   return r > 0.78 ? (r > 0.93 ? 2 : 1) : 0
 }
 
+// A finished block glitching as it lands: some letters and digits flicker to noise, fewer each
+// frame, until none do. Markdown's own symbols stay put, so the block keeps its shape throughout.
+const GLITCH_NOISE = '▓▒░█01%&@$'
+export function glitchText(text: string, p: number, frame = Math.floor(Date.now() / 50)): string {
+  if (p >= 1) return text
+  const share = 0.35 * Math.pow(1 - p, 1.5)
+  let out = ''
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!
+    const n = Math.sin(i * 12.9898 + frame * 78.233) * 43758.5453
+    const r = n - Math.floor(n)
+    out += /[A-Za-z0-9]/.test(c) && r < share ? GLITCH_NOISE[Math.floor(r * 997) % GLITCH_NOISE.length]! : c
+  }
+  return out
+}
+
 // A pill powering on: it strobes before it holds its color.
 function strobe(on: string, off: string, p: number): string {
   if (p >= 0.35) return on
@@ -913,10 +929,13 @@ export const register: Register = on => {
     if (hasMarkdownTable(e.props.text)) return next(e)
     const { Box, Text, Markdown, Raster } = $.ui.resolve(e)
     const m = await read($, mode)
+    // The engine streamed this text live; as the finished block lands it glitches, without retyping.
+    const g = entrance(`${e.requestId}:text`, 600)
     return (
       <Box
         flexDirection="row"
         marginTop={e.props.isFirstOfReply ? ROW_GAP : BLOCK_GAP}
+        marginLeft={jitter(e.requestId, g)}
       >
         <Box width={GUTTER} flexShrink={0} flexDirection="column">
           {e.props.isFirstOfReply && (
@@ -939,9 +958,8 @@ export const register: Register = on => {
             <Raster key="voiceprint" columns={8} rows={1} cells={encodeCells(drawVoiceprint(8, seedOf(e.props.text), m))} />
           )}
         </Box>
-        {/* The engine streamed this text live, so it lands as it is: no second typing pass. */}
         <Box flexGrow={1} flexShrink={1} flexDirection="column">
-          <Markdown text={e.props.text} />
+          <Markdown text={glitchText(e.props.text, g)} />
         </Box>
       </Box>
     )

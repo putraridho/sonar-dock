@@ -2,7 +2,7 @@ import type { UiOpenResult } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
 import { CORE_ROWS, drawCore, drawRadar, drawShimmer, drawTimeline, drawVoiceprint, encodeCells, radarSize, seedOf, toolKind } from '../hooks/radar'
-import { cleanCommand, decode, detectThreat, glint, hasMarkdownTable, mcpLine, gaugeColor, limitName, tagOf, untilReset } from '../hooks/register'
+import { cleanCommand, decode, detectThreat, glint, glitchText, hasMarkdownTable, mcpLine, gaugeColor, limitName, tagOf, untilReset } from '../hooks/register'
 
 const PANE = {
   plugin: 'sonar-dock',
@@ -212,6 +212,15 @@ describe('motion', () => {
     const mid = decode('npm test', 0.5)
     expect('npm test'.startsWith(mid.done)).toBe(true)
     expect(mid.done.length + mid.hot.length).toBeGreaterThan(mid.done.length)
+  })
+
+  test('a landing block glitches its letters only, then settles', async () => {
+    const md = '## Title\n- **bold** `code` [link](https://x.y)'
+    expect(glitchText(md, 1)).toBe(md)
+    const g = glitchText(md, 0, 3)
+    expect(g.length).toBe(md.length)
+    expect(g).not.toBe(md)
+    for (let i = 0; i < md.length; i++) if (!/[A-Za-z0-9]/.test(md[i]!)) expect(g[i]).toBe(md[i])
   })
 
   test('the glint crosses the line once', async () => {
