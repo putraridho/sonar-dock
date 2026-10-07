@@ -1,6 +1,6 @@
 {
   "name": "sonar-dock",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "A cinematic HUD: live radar sweep, threat level and telemetry feed of everything Claude does",
   "types": "./types/index.d.ts"
 }

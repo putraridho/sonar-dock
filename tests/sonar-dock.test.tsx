@@ -253,7 +253,28 @@ describe('MCP rows', () => {
 })
 
 describe('tables', () => {
-  test('a reply block with a table is left to the engine', async () => {
+  test('a reply with a table keeps the skin: the speaker on its own row, the table full width', async ($, on) => {
+    on('ui.open', async () => ({ value: { isPlaced: true } as UiOpenResult }))
+    on('command.run', async () => ({ text: 'engine' }))
+    on('ui.render', async ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>{`engine ${e.component}`}</Text>
+    })
+    await $.command.run({ command: 'sonar', args: '' } as Parameters<typeof $.command.run>[0])
+    const reply = await $.ui.mount({
+      plugin: 'sonar-dock',
+      surface: 'terminal',
+      component: 'AssistantMessage',
+      props: { text: 'Compare:\n\n| a | b |\n| --- | --- |\n| 1 | 2 |', isFirstOfReply: true },
+    })
+    expect(await reply.find({ type: 'Text', text: / CLAUDE / })).toBeDefined()
+    expect(await reply.find({ type: 'Raster', key: 'voiceprint' })).toBeDefined()
+    expect(await reply.find({ type: 'Markdown' })).toBeDefined()
+    expect(await reply.find({ type: 'Text', text: /engine AssistantMessage/ })).toBeUndefined()
+    await reply.unmount()
+  })
+
+  test('a table is recognised by its separator row', async () => {
     expect(hasMarkdownTable('| | Slack | Teams |\n| --- | --- | --- |\n| A | b | c |')).toBe(true)
     expect(hasMarkdownTable('intro\n\n| a | b |\n|:--|--:|\n| 1 | 2 |')).toBe(true)
     expect(hasMarkdownTable('No table here, just a | pipe.')).toBe(false)

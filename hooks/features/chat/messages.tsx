@@ -12,7 +12,7 @@ import { hasMarkdownTable } from '../../text/format'
 import { SWATCHES, mixHex } from '../../theme/palette'
 import type { Context } from '../../runtime/context'
 import { INITIAL } from '../../runtime/state'
-import { BLOCK_GAP, Decrypt, Pill, ROW_GAP, SpeakerRow, pillFlash } from './kit'
+import { BLOCK_GAP, Decrypt, Pill, ROW_GAP, SpeakerRow, WideRow, pillFlash } from './kit'
 
 // State this file reads or writes.
 const mode = atom({ plugin: 'sonar-dock', key: 'mode' } as const, INITIAL.mode)
@@ -39,20 +39,27 @@ export function installMessages(on: On, { motion }: Context): void {
   })
 
   on('ui.render', { component: 'AssistantMessage', surface: 'terminal' }, async ($, e, next) => {
-    // A table is laid out for the full width; in the narrower column its borders would break.
-    if (e.props.isSummary || hasMarkdownTable(e.props.text) || !(await read($, skin))) return next(e)
+    if (e.props.isSummary || !(await read($, skin))) return next(e)
     const ui = $.ui.resolve(e)
     const { Box, Markdown, Raster } = ui
     const m = await read($, mode)
     const C = SWATCHES[m]
     const id = e.requestId
     const p = motion.entrance(id, 900)
-    const speaker = e.props.isFirstOfReply && [
-      <Pill ui={ui} word="CLAUDE" p={p} background={pillFlash(C.claude, C.screen, p, motion.afterglow(`${id}:pill`, p))} ink={C.pillInk} />,
-      <Raster key="voiceprint" columns={VOICEPRINT_COLUMNS} rows={1} cells={encodeCells(drawVoiceprint(VOICEPRINT_COLUMNS, seedOf(e.props.text), m))} />,
-    ]
+    const pill = <Pill ui={ui} word="CLAUDE" p={p} background={pillFlash(C.claude, C.screen, p, motion.afterglow(`${id}:pill`, p))} ink={C.pillInk} />
+    const voiceprint = <Raster key="voiceprint" columns={VOICEPRINT_COLUMNS} rows={1} cells={encodeCells(drawVoiceprint(VOICEPRINT_COLUMNS, seedOf(e.props.text), m))} />
+    const gap = e.props.isFirstOfReply ? ROW_GAP : BLOCK_GAP
+    // A table needs the full width (beside the gutter its borders would break): the speaker
+    // takes a row of its own, and the block runs full width beneath it.
+    if (hasMarkdownTable(e.props.text)) {
+      return (
+        <WideRow ui={ui} gap={gap} speaker={e.props.isFirstOfReply && [pill, voiceprint]}>
+          <Markdown text={e.props.text} />
+        </WideRow>
+      )
+    }
     return (
-      <SpeakerRow ui={ui} gap={e.props.isFirstOfReply ? ROW_GAP : BLOCK_GAP} speaker={speaker}>
+      <SpeakerRow ui={ui} gap={gap} speaker={e.props.isFirstOfReply && [pill, voiceprint]}>
         <Box flexGrow={1} flexShrink={1} flexDirection="column">
           <Markdown text={e.props.text} />
         </Box>

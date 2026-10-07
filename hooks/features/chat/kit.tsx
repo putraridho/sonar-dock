@@ -40,6 +40,22 @@ export function SpeakerRow(props: { ui: Pick<Ui, 'Box'>; gap: number; shift?: nu
   )
 }
 
+// The screenplay layout for a block that needs the full width: the speaker on a row of its own
+// (pill and mark side by side), the block beneath it from the left edge.
+export function WideRow(props: { ui: Pick<Ui, 'Box'>; gap: number; speaker: unknown; children?: unknown }) {
+  const { Box } = props.ui
+  return (
+    <Box flexDirection="column" marginTop={props.gap}>
+      {Boolean(props.speaker) && (
+        <Box flexDirection="row" columnGap={1} marginBottom={1}>
+          {props.speaker as never}
+        </Box>
+      )}
+      {props.children as never}
+    </Box>
+  )
+}
+
 // Text typing itself in: locked characters, a flickering band, the write head, static ahead.
 export function Decrypt(props: {
   ui: Pick<Ui, 'Text'>
