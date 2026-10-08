@@ -18,6 +18,8 @@ export class Surfaces {
   readonly shimmers = new Set<string>()
   /** Each DONE row's turn record, by row: claimed once, so two turns of like length never swap. */
   readonly doneRows = new Map<string, string>()
+  /** Each /sonar row's readout, by row: what held when it was first drawn. */
+  readonly readouts = new Map<string, string[]>()
 
   get isToolRunning(): boolean {
     return this.running.size > 0

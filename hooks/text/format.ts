@@ -51,3 +51,12 @@ export function duration(ms: number): string {
 export function hasMarkdownTable(text: string): boolean {
   return /^\s*\|.*\|\s*\n\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/m.test(text)
 }
+
+// Pasted text arrives wrapped in <pasted_content id="…">…</pasted_content id="…">: the words alone,
+// without the wrapper, and at most one blank line between it and what was typed.
+export function unwrapPastes(text: string): string {
+  return text
+    .replace(/<pasted_content id="([^"]*)">([\s\S]*?)<\/pasted_content id="\1">/g, (_, _id, body: string) => body.replace(/^\s*\n|\n\s*$/g, ''))
+    .replace(/\n[ \t]*(\n[ \t]*)+\n/g, '\n\n')
+    .replace(/^\s*\n|\n\s*$/g, '')
+}

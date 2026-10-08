@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'claude-code/testing'
 
+import { promptLine } from '../hooks/domain/calls'
+import { unwrapPastes } from '../hooks/text/format'
 import { plainLine, tailToWidth } from '../hooks/text/markdown'
 
 const tagged = (text: string) => plainLine(text, [...text].map((_, i) => i))
@@ -42,5 +44,17 @@ describe('a long line keeps its writing end', () => {
   test('a short line is left whole', async () => {
     const line = tagged('short')
     expect(tailToWidth(line, 24)).toBe(line)
+  })
+})
+
+describe('pasted text reads as the words pasted', () => {
+  test('the wrapper and the blank lines around it go', async () => {
+    const paste = '\n\n<pasted_content id="134a">\nScreen areas\n  - Image: pictures\n</pasted_content id="134a">\n\n\nwdyt?'
+    expect(unwrapPastes(paste)).toBe('Screen areas\n  - Image: pictures\n\nwdyt?')
+    expect(promptLine(paste)).toBe('Screen areas - Image: pictures wdyt?')
+  })
+
+  test('a prompt without a paste is left alone', async () => {
+    expect(unwrapPastes('fix the <b>login</b> bug')).toBe('fix the <b>login</b> bug')
   })
 })

@@ -8,7 +8,7 @@ import { seedOf } from '../../lib/math'
 import { jitter, strobe } from '../../motion/effects'
 import { encodeCells } from '../../raster/cells'
 import { drawVoiceprint } from '../../raster/strips'
-import { hasMarkdownTable } from '../../text/format'
+import { hasMarkdownTable, unwrapPastes } from '../../text/format'
 import { SWATCHES, mixHex } from '../../theme/palette'
 import type { Context } from '../../runtime/context'
 import { INITIAL } from '../../runtime/state'
@@ -27,12 +27,13 @@ export function installMessages(on: On, { motion }: Context): void {
     const { Box } = ui
     const C = SWATCHES[await read($, mode)]
     const id = e.requestId
-    const p = motion.entrance(id, Math.min(2400, 1100 + e.props.text.length * 12))
+    const text = unwrapPastes(e.props.text)
+    const p = motion.entrance(id, Math.min(2400, 1100 + text.length * 12))
     const background = p < 0.35 ? strobe(C.accent, C.screen, p) : mixHex(C.ink, C.accent, motion.afterglow(`${id}:pill`, p))
     return (
       <SpeakerRow ui={ui} gap={ROW_GAP} shift={jitter(id, p)} speaker={<Pill ui={ui} word="YOU" p={Math.min(1, p * 3)} background={background} ink={C.screen} />}>
         <Box flexGrow={1} flexShrink={1}>
-          <Decrypt ui={ui} text={e.props.text} p={p} color={C.ink} hot={C.accent} screen={C.screen} glow={motion.afterglow(id, p)} bold />
+          <Decrypt ui={ui} text={text} p={p} color={C.ink} hot={C.accent} screen={C.screen} glow={motion.afterglow(id, p)} bold />
         </Box>
       </SpeakerRow>
     )

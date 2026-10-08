@@ -1,6 +1,6 @@
 // How a tool call reads: what it was asked to do, and what it came back with.
 
-import { plural } from '../text/format'
+import { plural, unwrapPastes } from '../text/format'
 
 export function cleanCommand(command: string): string {
   return command
@@ -35,7 +35,7 @@ export function describeCall(input: unknown): string {
 
 // A prompt as one log line: its text with runs of space and newlines folded.
 export function promptLine(text: string): string {
-  return text.replace(/\s+/g, ' ').trim()
+  return unwrapPastes(text).replace(/\s+/g, ' ').trim()
 }
 
 export const PROMPT_KIND = 'prompt'
