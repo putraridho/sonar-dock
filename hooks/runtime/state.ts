@@ -13,7 +13,7 @@ export const BOOT_DONE = 99
 
 export const INITIAL: { readonly [K in keyof State]: State[K] } = {
   log: [],
-  stats: { ops: 0, edits: 0, errors: 0, turns: 0, files: [], turnStartedAt: null },
+  stats: { ops: 0, edits: 0, errors: 0, turns: 0, files: [], edited: [], failed: [], turnStartedAt: null },
   threat: 0,
   alert: null,
   boot: BOOT_DONE,
@@ -22,8 +22,11 @@ export const INITIAL: { readonly [K in keyof State]: State[K] } = {
   skin: false,
   turns: [],
   reserves: EMPTY_RESERVES,
+  inspect: null,
 }
 
 /** How many entries the activity log and the turn records keep. */
 export const LOG_LIMIT = 60
 export const TURN_LIMIT = 200
+/** How many edits and failures the totals keep to list. */
+export const MARK_LIMIT = 50

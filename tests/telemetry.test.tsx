@@ -114,3 +114,25 @@ test('a prompt seen twice in quick succession is logged once', async () => {
   expect(isRepeatPrompt(lines, 'something else', 3000)).toBe(false)
   expect(isRepeatPrompt([], 'who is roman', 3000)).toBe(false)
 })
+
+test('the totals open their lists: edits, files, and errors with the reason', async ($, on) => {
+  on('ui.open', async () => ({ value: { isPlaced: true } as UiOpenResult }))
+  on('tool.call', { tool: 'Bash' }, async () => ({ deny: 'Permission denied\nmore' }) as never)
+  on('tool.call', { tool: 'Edit' }, async () => ({ result: {} }) as never)
+  await $.tool.call({ tool: 'Edit', tool_use_id: 'toolu_e1', file_path: '/repo/src/auth.ts', old_string: 'a', new_string: 'b' } as never)
+  await $.tool.call({ tool: 'Bash', tool_use_id: 'toolu_b1', command: 'npm publish', description: 'Publish' } as never)
+  const ui = await $.ui.mount(PANE as Parameters<typeof $.ui.mount>[0])
+  expect(await ui.find({ type: 'Text', text: /Permission denied/ })).toBeUndefined()
+
+  await ui.press({ key: 'total:errors' })
+  expect(await ui.find({ type: 'Text', text: /Permission denied/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /more/ })).toBeUndefined()
+
+  await ui.press({ key: 'total:files' })
+  expect(await ui.find({ type: 'Text', text: /Permission denied/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /\/repo\/src\/auth\.ts/ })).toBeDefined()
+
+  await ui.press({ key: 'total:files' })
+  expect(await ui.find({ type: 'Text', text: /\/repo\/src\/auth\.ts/ })).toBeUndefined()
+  await ui.unmount()
+})

@@ -1,6 +1,6 @@
 // The dashboard's sections, top to bottom: threat, usage gauges, the activity log, the totals.
 
-import type { LogLine, Reserves, Stats } from '../../../types'
+import type { Inspect, LogLine, Mark, Reserves, Stats } from '../../../types'
 import { isCall } from '../../domain/calls'
 import { TOOLS, asToolKind } from '../../domain/tools'
 import { ALERT_LEVEL, threatName } from '../../domain/threat'
@@ -123,24 +123,77 @@ export function ActivityLog({ ui, C, T, lines, width, motion }: Section & { line
   )
 }
 
-export function Totals({ ui, C, T, stats }: Section & { stats: Stats }) {
-  const { Box } = ui
+/** Rows a total's list takes at most, its "more" line included. */
+export const INSPECT_ROWS = 8
+
+// The totals; edits, files and errors are buttons that open their list under the row.
+export function Totals({ ui, C, T, stats, open, onToggle }: Section & { stats: Stats; open: Inspect; onToggle: (k: Exclude<Inspect, null>) => void }) {
+  const { Box, Button } = ui
   const totals = [
-    { n: stats.ops, word: noun(stats.ops, 'action'), isAlarm: false },
-    { n: stats.edits, word: noun(stats.edits, 'edit'), isAlarm: false },
-    { n: stats.files.length, word: noun(stats.files.length, 'file'), isAlarm: false },
-    { n: stats.errors, word: noun(stats.errors, 'error'), isAlarm: stats.errors > 0 },
-  ]
+    { k: null, n: stats.ops, word: noun(stats.ops, 'action'), isAlarm: false },
+    { k: 'edits', n: stats.edits, word: noun(stats.edits, 'edit'), isAlarm: false },
+    { k: 'files', n: stats.files.length, word: noun(stats.files.length, 'file'), isAlarm: false },
+    { k: 'errors', n: stats.errors, word: noun(stats.errors, 'error'), isAlarm: stats.errors > 0 },
+  ] as const
   return (
-    <Box flexDirection="row">
-      {totals.map(t => (
-        <Box marginRight={3}>
-          <T color={t.isAlarm ? C.red : C.ink} bold>
-            {String(t.n)}
-          </T>
-          <T color={C.mute}>{` ${t.word}`}</T>
-        </Box>
-      ))}
+    <Box flexDirection="row" flexWrap="wrap">
+      {totals.map(t =>
+        t.k === null || t.n === 0 ? (
+          <Box marginRight={3}>
+            <T color={C.ink} bold>
+              {String(t.n)}
+            </T>
+            <T color={C.mute}>{` ${t.word}`}</T>
+          </Box>
+        ) : (
+          <Box marginRight={2}>
+            <Button key={`total:${t.k}`} plain onPress={() => onToggle(t.k)}>
+              {`${t.n} ${t.word} ${open === t.k ? '▾' : '▸'}`}
+            </Button>
+            {t.isAlarm && <T color={C.red}>{' !'}</T>}
+          </Box>
+        ),
+      )}
     </Box>
   )
+}
+
+// The list a total opens: newest first, cut to INSPECT_ROWS with a line saying how many more.
+export function inspected(stats: Stats, open: Inspect): { rows: { time?: number; tool?: string; text: string; reason?: string }[]; more: number } {
+  const all =
+    open === 'files'
+      ? [...stats.files].reverse().map(text => ({ text }))
+      : [...((open === 'edits' ? stats.edited : open === 'errors' ? stats.failed : undefined) ?? [])].reverse().map((m: Mark) => ({ time: m.at, tool: m.tool, text: m.detail, reason: m.reason }))
+  const room = all.length > INSPECT_ROWS ? INSPECT_ROWS - 1 : INSPECT_ROWS
+  return { rows: all.slice(0, room), more: all.length - Math.min(all.length, room) }
+}
+
+export function Inspector({ ui, C, T, stats, open, width }: Section & { stats: Stats; open: Inspect; width: number }) {
+  const { Box } = ui
+  if (open === null) return null
+  const { rows, more } = inspected(stats, open)
+  if (rows.length === 0) return <T color={C.mute}>Calls from before this update were not recorded</T>
+  return (
+    <Box flexDirection="column" width={width}>
+      {rows.map(r => (
+        <Box flexDirection="row" width={width}>
+          {r.time !== undefined && (
+            <Box width={TIME_W} flexShrink={0}>
+              <T color={C.mute}>{clock(r.time).slice(0, 5)}</T>
+            </Box>
+          )}
+          <Box flexGrow={1} flexShrink={1}>
+            <T color={open === 'errors' ? C.red : C.ink}>{tailOf(r.text, width - (r.time === undefined ? 0 : TIME_W))}</T>
+            {r.reason !== undefined && <T color={C.mute}>{`  ${r.reason}`}</T>}
+          </Box>
+        </Box>
+      ))}
+      {more > 0 && <T color={C.mute}>{`+ ${more} more`}</T>}
+    </Box>
+  )
+}
+
+// A path that does not fit keeps its end: the file name matters more than the folders above it.
+function tailOf(text: string, width: number): string {
+  return text.length <= width || width < 4 ? text : `…${text.slice(text.length - width + 1)}`
 }

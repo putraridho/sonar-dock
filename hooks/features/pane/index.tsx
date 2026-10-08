@@ -1,8 +1,8 @@
 // The HUD pane: boot sequence, then the dashboard: header, threat, usage, the radar, the
-// activity log and the session's totals.
+// activity log and the session's totals, each of which opens its list.
 
 import type { On } from 'claude-code'
-import { atom, read } from 'claude-code'
+import { atom, read, update } from 'claude-code'
 
 import { encodeCells } from '../../raster/cells'
 import { drawRadar, radarSize } from '../../raster/radar'
@@ -14,7 +14,7 @@ import { BOOT_DONE, INITIAL } from '../../runtime/state'
 import { Boot } from './boot'
 import { screenText } from './kit'
 import type { PaneUi } from './kit'
-import { ActivityLog, ThreatLine, Totals, Usage, gaugesOf, linesThatFit } from './sections'
+import { ActivityLog, INSPECT_ROWS, Inspector, ThreatLine, Totals, Usage, gaugesOf, linesThatFit } from './sections'
 
 // State this file reads or writes.
 const log = atom({ plugin: 'sonar-dock', key: 'log' } as const, INITIAL.log)
@@ -25,6 +25,7 @@ const boot = atom({ plugin: 'sonar-dock', key: 'boot' } as const, INITIAL.boot)
 const now = atom({ plugin: 'sonar-dock', key: 'now' } as const, INITIAL.now)
 const mode = atom({ plugin: 'sonar-dock', key: 'mode' } as const, INITIAL.mode)
 const reserves = atom({ plugin: 'sonar-dock', key: 'reserves' } as const, INITIAL.reserves)
+const inspect = atom({ plugin: 'sonar-dock', key: 'inspect' } as const, INITIAL.inspect)
 
 /** Rows the dashboard needs besides the radar and the log. */
 const CHROME_ROWS = 21
@@ -53,6 +54,7 @@ export function installPane(on: On, { motion, scene, surfaces, hud }: Context): 
     const danger = await read($, alert)
     const list = await read($, log)
     const res = await read($, reserves)
+    const open = await read($, inspect)
 
     const size = radarSize(width)
     let radar = <T color={C.mute}>The radar draws in the terminal.</T>
@@ -63,7 +65,8 @@ export function installPane(on: On, { motion, scene, surfaces, hud }: Context): 
       radar = <Raster key="radar" columns={size.columns} rows={size.rows} cells={encodeCells(drawRadar(size.columns, size.rows, scene.now(), hud.blips, level, m))} />
     }
     const isEngaged = s.turnStartedAt !== null
-    const logRows = Math.max(MIN_LOG_ROWS, (e.viewport?.rows ?? 40) - size.rows - CHROME_ROWS)
+    // An open list takes its rows from the activity log.
+    const logRows = Math.max(MIN_LOG_ROWS, (e.viewport?.rows ?? 40) - size.rows - CHROME_ROWS - (open === null ? 0 : INSPECT_ROWS + 1))
 
     return (
       <Box flexDirection="column" backgroundColor={C.screen} paddingX={2} paddingY={1}>
@@ -87,7 +90,9 @@ export function installPane(on: On, { motion, scene, surfaces, hud }: Context): 
         <ActivityLog ui={ui} C={C} T={T} lines={linesThatFit(list, logRows, width)} width={width} motion={motion} />
         {blank}
         {rule}
-        <Totals ui={ui} C={C} T={T} stats={s} />
+        <Totals ui={ui} C={C} T={T} stats={s} open={open} onToggle={k => void update($, inspect, cur => (cur === k ? null : k))} />
+        {open !== null && blank}
+        <Inspector ui={ui} C={C} T={T} stats={s} open={open} width={width} />
       </Box>
     )
   })

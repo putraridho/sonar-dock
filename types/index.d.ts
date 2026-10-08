@@ -11,14 +11,23 @@ export type LogLine = {
   agent?: number
 }
 
+/** One call the totals can list: when, which tool, what it touched, and why it failed. */
+export type Mark = { at: number; tool: string; detail: string; reason?: string }
+
 export type Stats = {
   ops: number
   edits: number
   errors: number
   turns: number
   files: string[]
+  /** The newest edits and failures, for the totals' lists (absent in stats from before 0.4.1). */
+  edited?: Mark[]
+  failed?: Mark[]
   turnStartedAt: number | null
 }
+
+/** Which total the pane lists under the totals row. */
+export type Inspect = 'edits' | 'files' | 'errors' | null
 
 export type Reserves = {
   limits: { kind: string; percentUsed: number; resetsAt?: string }[]
@@ -50,6 +59,7 @@ declare module 'claude-code' {
       skin: boolean
       mode: 'light' | 'dark'
       turns: TurnRecord[]
+      inspect: Inspect
     }
   }
 }

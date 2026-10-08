@@ -33,6 +33,14 @@ export function describeCall(input: unknown): string {
   return found.replace(/\s+/g, ' ')
 }
 
+// Why a call failed, in one line: the deny, or the error the tool came back with.
+export function failureOf(ran: unknown): string | undefined {
+  const result = fieldOf(ran, 'result')
+  const text = stringOf(ran, 'deny') ?? (typeof result === 'string' ? result : undefined) ?? stringOf(result, 'stderr') ?? stringOf(result, 'error') ?? stringOf(result, 'message')
+  const line = text?.split('\n').map(l => l.trim()).find(l => l !== '')
+  return line === undefined ? undefined : line.replace(/^<\/?tool_use_error>|<\/?tool_use_error>$/g, '').trim()
+}
+
 // A prompt as one log line: its text with runs of space and newlines folded.
 export function promptLine(text: string): string {
   return unwrapPastes(text).replace(/\s+/g, ' ').trim()

@@ -4,7 +4,7 @@ import type { Elements, RenderNode } from 'claude-code'
 
 import type { Swatch } from '../../theme/palette'
 
-export type PaneUi = Pick<Elements['terminal'], 'Box' | 'Text'>
+export type PaneUi = Pick<Elements['terminal'], 'Box' | 'Text' | 'Button'>
 
 export type ScreenText = (props: { color?: string; bold?: boolean; children?: unknown }) => RenderNode
 

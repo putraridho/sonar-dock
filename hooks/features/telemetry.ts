@@ -4,15 +4,15 @@
 import type { EngineInterface, On } from 'claude-code'
 import { atom, read, update } from 'claude-code'
 
-import type { LogLine, Stats, TurnRecord } from '../../types'
-import { PROMPT_KIND, describeCall, isCall, isFromPerson, isRepeatPrompt, promptLine, tagOf } from '../domain/calls'
+import type { LogLine, Mark, Stats, TurnRecord } from '../../types'
+import { PROMPT_KIND, describeCall, failureOf, isCall, isFromPerson, isRepeatPrompt, promptLine, tagOf } from '../domain/calls'
 import { DANGER_STEP, FAILURE_FLOOR, detectThreat, threatName } from '../domain/threat'
 import { TOOLS, toolKind } from '../domain/tools'
 import type { ToolKind } from '../domain/tools'
 import { fiveHourPercent } from '../domain/usage'
 import { fit } from '../text/format'
 import type { Context } from '../runtime/context'
-import { INITIAL, LOG_LIMIT, TURN_LIMIT } from '../runtime/state'
+import { INITIAL, LOG_LIMIT, MARK_LIMIT, TURN_LIMIT } from '../runtime/state'
 
 // State this file reads or writes.
 const log = atom({ plugin: 'sonar-dock', key: 'log' } as const, INITIAL.log)
@@ -69,7 +69,8 @@ export function installTelemetry(on: On, ctx: Context): void {
     blip.isLive = false
     blip.isFailed = isFailed
     await update($, log, list => list.map((l): LogLine => (l.id === id ? { ...l, state: isFailed ? 'err' : 'ok', end: Date.now() } : l)))
-    await update($, stats, s => tally(s, kind, isFailed, (e as { file_path?: unknown }).file_path))
+    const mark: Mark = { at: Date.now(), tool: TOOLS[kind].tag, detail, ...(isFailed ? { reason: failureOf(ran) } : {}) }
+    await update($, stats, s => tally(s, kind, isFailed, (e as { file_path?: unknown }).file_path, mark))
     if (isFailed) await update($, threat, () => hud.setLevel(Math.max(hud.level, FAILURE_FLOOR)))
     return ran
   }).catch((_$, e, next) => next(e))
@@ -100,15 +101,19 @@ async function raiseAlarm($: EngineInterface, ctx: Context, command: string): Pr
   $.ui.toast(`⚠ RED ALERT ▸ ${danger} DETECTED`, { timeoutMs: ALERT_TOAST_MS })
 }
 
-function tally(s: Stats, kind: ToolKind, isFailed: boolean, path: unknown): Stats {
+function tally(s: Stats, kind: ToolKind, isFailed: boolean, path: unknown, mark: Mark): Stats {
   const isEdit = kind === 'edit'
   const isNewFile = isEdit && typeof path === 'string' && !s.files.includes(path)
+  const edited = s.edited ?? []
+  const failed = s.failed ?? []
   return {
     ...s,
     ops: s.ops + 1,
     edits: s.edits + (isEdit && !isFailed ? 1 : 0),
     errors: s.errors + (isFailed ? 1 : 0),
     files: isNewFile ? [...s.files, path] : s.files,
+    edited: isEdit && !isFailed ? [...edited, mark].slice(-MARK_LIMIT) : edited,
+    failed: isFailed ? [...failed, mark].slice(-MARK_LIMIT) : failed,
   }
 }
 
