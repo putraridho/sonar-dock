@@ -4,6 +4,7 @@
 import type { On } from 'claude-code'
 import { atom, read } from 'claude-code'
 
+import { hasMermaid, splitMermaid } from '../../diagram'
 import { seedOf } from '../../lib/math'
 import { jitter, strobe } from '../../motion/effects'
 import { encodeCells } from '../../raster/cells'
@@ -12,6 +13,7 @@ import { hasMarkdownTable, unwrapPastes } from '../../text/format'
 import { SWATCHES, mixHex } from '../../theme/palette'
 import type { Context } from '../../runtime/context'
 import { INITIAL } from '../../runtime/state'
+import { Diagram } from './diagram'
 import { BLOCK_GAP, Decrypt, Pill, ROW_GAP, SpeakerRow, WideRow, pillFlash } from './kit'
 
 // State this file reads or writes.
@@ -50,6 +52,21 @@ export function installMessages(on: On, { motion }: Context): void {
     const pill = <Pill ui={ui} word="CLAUDE" p={p} background={pillFlash(C.claude, C.screen, p, motion.afterglow(`${id}:pill`, p))} ink={C.pillInk} />
     const voiceprint = <Raster key="voiceprint" columns={VOICEPRINT_COLUMNS} rows={1} cells={encodeCells(drawVoiceprint(VOICEPRINT_COLUMNS, seedOf(e.props.text), m))} />
     const gap = e.props.isFirstOfReply ? ROW_GAP : BLOCK_GAP
+    // A mermaid block is drawn as a diagram, full width like a table, the words around it as they were.
+    const segments = hasMermaid(e.props.text) ? splitMermaid(e.props.text, e.viewport?.columns) : []
+    if (segments.some(s => s.kind === 'diagram')) {
+      return (
+        <WideRow ui={ui} gap={gap} speaker={e.props.isFirstOfReply && [pill, voiceprint]}>
+          {segments.map((s, k) =>
+            s.kind === 'markdown' ? (
+              <Markdown key={`md${k}`} text={s.text} />
+            ) : (
+              <Diagram key={`diagram${k}`} ui={ui} title={s.title} rows={s.rows} p={motion.entrance(`${id}:diagram${k}`, 500 + s.rows.length * 30)} C={C} />
+            ),
+          )}
+        </WideRow>
+      )
+    }
     // A table needs the full width (beside the gutter its borders would break): the speaker
     // takes a row of its own, and the block runs full width beneath it.
     if (hasMarkdownTable(e.props.text)) {
