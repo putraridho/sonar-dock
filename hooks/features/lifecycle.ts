@@ -4,7 +4,8 @@
 import type { EngineInterface, On } from 'claude-code'
 import { atom, read, update } from 'claude-code'
 
-import { fiveHourPercent, toReserves, windowName } from '../domain/usage'
+import { debriefLines } from '../domain/debrief'
+import { fiveHourPercent, roughly, toReserves, windowName } from '../domain/usage'
 import type { Appearance } from '../runtime/appearance'
 import { THEME_KEY, resolveMode } from '../runtime/appearance'
 import type { Context } from '../runtime/context'
@@ -20,6 +21,7 @@ const now = atom({ plugin: 'sonar-dock', key: 'now' } as const, INITIAL.now)
 const mode = atom({ plugin: 'sonar-dock', key: 'mode' } as const, INITIAL.mode)
 const skin = atom({ plugin: 'sonar-dock', key: 'skin' } as const, INITIAL.skin)
 const reserves = atom({ plugin: 'sonar-dock', key: 'reserves' } as const, INITIAL.reserves)
+const stats = atom({ plugin: 'sonar-dock', key: 'stats' } as const, INITIAL.stats)
 
 const SKIN_KEY = 'skin'
 const PANE_SIZE = { columns: 66, rows: 40 }
@@ -27,16 +29,17 @@ const BOOT_STEP_MS = 280
 const TOAST_MS = 6000
 
 export function installLifecycle(on: On, ctx: Context): void {
-  const { hud, appearance, scene, limits } = ctx
+  const { hud, appearance, scene, limits, pace } = ctx
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'sonar', description: 'Open the Sonar Dock HUD: radar, threat level and live telemetry' })
+    await $.command.register({ name: 'sonar', description: 'Open the Sonar Dock HUD: radar, threat level and live telemetry (debrief for a session summary)' })
     await update($, now, () => Date.now())
     await syncMode($, appearance)
     // The skin stays as the person last left it, across sessions, until /sonar off.
     if ((await $.store.get(SKIN_KEY)) === true) await update($, skin, () => true)
     const first = toReserves(await $.session.usage())
     scene.noteUsage(fiveHourPercent(first))
+    pace.note(first, Date.now())
     await update($, reserves, () => first)
     startLoops(
       {
@@ -62,12 +65,14 @@ export function installLifecycle(on: On, ctx: Context): void {
       await syncMode($, appearance)
       return { text: `Sonar Dock palette: ${arg === 'auto' ? `auto (${appearance.current})` : arg}.` }
     }
+    const debrief = async () => debriefLines(await read($, stats), (await read($, reserves)).costUsd, Date.now() - ctx.startedAt).join('\n')
+    if (arg === 'debrief') return { text: await debrief() }
     const isOn = arg !== 'off'
     await update($, skin, () => isOn)
     await $.store.set(SKIN_KEY, isOn)
     if (!isOn) {
       await $.ui.close({ id: PANE })
-      return { text: 'Sonar Dock standing down. Chat restored.' }
+      return { text: `Sonar Dock standing down. Chat restored.\n${await debrief()}` }
     }
     const opened = await openPane($)
     return { text: opened.isPlaced ? 'Sonar Dock online.' : 'Sonar Dock is armed: widen the terminal to seat the HUD.' }
@@ -75,9 +80,13 @@ export function installLifecycle(on: On, ctx: Context): void {
 
   on('session.measure', async ($, e, next) => {
     const r = toReserves(e)
+    const at = Date.now()
     scene.noteUsage(fiveHourPercent(r))
+    pace.note(r, at)
     await update($, reserves, () => r)
     for (const l of limits.crossed(r)) $.ui.toast(`${windowName(l.kind)} usage at ${Math.round(l.percentUsed)}%`, { timeoutMs: TOAST_MS })
+    // Before a line is crossed: a window whose pace says it fills soon, ahead of its reset.
+    for (const s of pace.soon(r, at)) $.ui.toast(`${windowName(s.kind)} window full in ${roughly(s.ms)} at this pace`, { timeoutMs: TOAST_MS })
     return next(e)
   })
 }

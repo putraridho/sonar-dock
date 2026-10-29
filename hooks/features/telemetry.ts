@@ -71,7 +71,7 @@ export function installTelemetry(on: On, ctx: Context): void {
     await update($, log, list => list.map((l): LogLine => (l.id === id ? { ...l, state: isFailed ? 'err' : 'ok', end: Date.now() } : l)))
     const mark: Mark = { at: Date.now(), tool: TOOLS[kind].tag, detail, ...(isFailed ? { reason: failureOf(ran) } : {}) }
     await update($, stats, s => tally(s, kind, isFailed, (e as { file_path?: unknown }).file_path, mark))
-    if (isFailed) await update($, threat, () => hud.setLevel(Math.max(hud.level, FAILURE_FLOOR)))
+    if (isFailed) await setThreat($, ctx, Math.max(hud.level, FAILURE_FLOOR))
     return ran
   }).catch((_$, e, next) => next(e))
 
@@ -97,10 +97,16 @@ export function installTelemetry(on: On, ctx: Context): void {
 async function raiseAlarm($: EngineInterface, ctx: Context, tool: string, input: unknown): Promise<void> {
   const danger = threatOf(tool, input)
   if (!danger) return
-  await update($, threat, () => ctx.hud.setLevel(ctx.hud.level + danger.step))
+  await setThreat($, ctx, ctx.hud.level + danger.step)
   await update($, alert, () => danger.name)
   const word = danger.step >= DANGER_STEP ? 'RED ALERT' : 'CAUTION'
   $.ui.toast(`⚠ ${word} ▸ ${danger.name} DETECTED`, { timeoutMs: ALERT_TOAST_MS })
+}
+
+// Sets the threat level, and the session's peak with it.
+async function setThreat($: EngineInterface, ctx: Context, level: number): Promise<void> {
+  const set = await update($, threat, () => ctx.hud.setLevel(level))
+  await update($, stats, s => (set > (s.peak ?? 0) ? { ...s, peak: set } : s))
 }
 
 function tally(s: Stats, kind: ToolKind, isFailed: boolean, path: unknown, mark: Mark): Stats {
@@ -111,6 +117,7 @@ function tally(s: Stats, kind: ToolKind, isFailed: boolean, path: unknown, mark:
   return {
     ...s,
     ops: s.ops + 1,
+    kinds: { ...s.kinds, [kind]: (s.kinds?.[kind] ?? 0) + 1 },
     edits: s.edits + (isEdit && !isFailed ? 1 : 0),
     errors: s.errors + (isFailed ? 1 : 0),
     files: isNewFile ? [...s.files, path] : s.files,

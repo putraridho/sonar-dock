@@ -31,7 +31,7 @@ const inspect = atom({ plugin: 'sonar-dock', key: 'inspect' } as const, INITIAL.
 const CHROME_ROWS = 21
 const MIN_LOG_ROWS = 3
 
-export function installPane(on: On, { motion, scene, surfaces, hud }: Context): void {
+export function installPane(on: On, { motion, scene, surfaces, hud, pace }: Context): void {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const ui = $.ui.resolve(e) as unknown as PaneUi
     const { Box } = ui
@@ -82,7 +82,7 @@ export function installPane(on: On, { motion, scene, surfaces, hud }: Context): 
         <ThreatLine ui={ui} C={C} T={T} level={level} danger={danger} />
         {blank}
         <T color={C.mute} bold>Usage</T>
-        <Usage ui={ui} C={C} T={T} gauges={gaugesOf(res, t)} width={width} mode={m} motion={motion} />
+        <Usage ui={ui} C={C} T={T} gauges={gaugesOf(res, t, kind => pace.fullIn(kind, t))} width={width} mode={m} motion={motion} />
         {blank}
         {radar}
         {blank}

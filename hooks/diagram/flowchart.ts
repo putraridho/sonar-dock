@@ -4,12 +4,16 @@
 import { Canvas, DOWN, RIGHT, UP, LEFT, textWidth } from './canvas'
 import type { Rows, Stroke } from './canvas'
 
-type Shape = 'rect' | 'round' | 'diamond'
-type Head = 'arrow' | 'cross' | 'circle' | 'none'
+export type Shape = 'rect' | 'round' | 'diamond' | 'class'
+export type Head = 'arrow' | 'cross' | 'circle' | 'hollow' | 'diamond' | 'open-diamond' | 'none'
 export type Direction = 'TD' | 'BT' | 'LR' | 'RL'
 
-type FlowNode = { id: string; lines: string[]; shape: Shape }
-type FlowEdge = { from: string; to: string; label: string; stroke: Stroke; head: Head; isBoth: boolean }
+/** In a class box's lines, the rule between its name and its members. */
+export const DIVIDER = '\0'
+
+export type FlowNode = { id: string; lines: string[]; shape: Shape }
+/** An edge; `tail` is the head drawn where it leaves, as a class diagram's `<|--` asks. */
+export type FlowEdge = { from: string; to: string; label: string; stroke: Stroke; head: Head; isBoth: boolean; tail?: Head }
 export type Flowchart = { direction: Direction; nodes: FlowNode[]; edges: FlowEdge[] }
 
 const HEADER = /^(?:flowchart|graph)(?:\s+(TD|TB|BT|LR|RL))?\s*;?\s*$/i
@@ -132,12 +136,12 @@ export function parseFlowchart(source: string): Flowchart | null {
   return nodes.size ? { direction, nodes: [...nodes.values()], edges } : null
 }
 
-const CORNERS: Record<Shape, string> = { rect: '┌┐└┘', round: '╭╮╰╯', diamond: '╱╲╲╱' }
+const CORNERS: Record<Shape, string> = { rect: '┌┐└┘', round: '╭╮╰╯', diamond: '╱╲╲╱', class: '┌┐└┘' }
 const HEADS: Record<'down' | 'up' | 'right' | 'left', Record<Exclude<Head, 'none'>, string>> = {
-  down: { arrow: '▼', cross: '×', circle: 'o' },
-  up: { arrow: '▲', cross: '×', circle: 'o' },
-  right: { arrow: '▶', cross: '×', circle: 'o' },
-  left: { arrow: '◀', cross: '×', circle: 'o' },
+  down: { arrow: '▼', cross: '×', circle: 'o', hollow: '▽', diamond: '◆', 'open-diamond': '◇' },
+  up: { arrow: '▲', cross: '×', circle: 'o', hollow: '△', diamond: '◆', 'open-diamond': '◇' },
+  right: { arrow: '▶', cross: '×', circle: 'o', hollow: '▷', diamond: '◆', 'open-diamond': '◇' },
+  left: { arrow: '◀', cross: '×', circle: 'o', hollow: '◁', diamond: '◆', 'open-diamond': '◇' },
 }
 
 /** Blank cells between neighbours in a layer, across the flow. */
@@ -336,7 +340,8 @@ export function drawFlowchart(chart: Flowchart, direction: Direction = chart.dir
     if (isWide) openings.push(lowerIsTarget ? [bx - 1, by, '├'] : [bx + 1, by, '┤'])
     else openings.push(lowerIsTarget ? [bx, by - 1, '┬'] : [bx, by + 1, '┴'])
     if (e.head !== 'none') ends.push({ at: lowerIsTarget ? last : first, head: e.head, facing: lowerIsTarget ? towardLower : towardUpper })
-    if (e.isBoth && e.head !== 'none') ends.push({ at: lowerIsTarget ? first : last, head: e.head, facing: lowerIsTarget ? towardUpper : towardLower })
+    const tail = e.tail ?? (e.isBoth ? e.head : 'none')
+    if (tail !== 'none') ends.push({ at: lowerIsTarget ? first : last, head: tail, facing: lowerIsTarget ? towardUpper : towardLower })
     // The first cell under a box joins its border.
     if (!isWide) canvas.link(first[0], first[1], UP)
     else canvas.link(first[0], first[1], LEFT)
@@ -350,7 +355,13 @@ export function drawFlowchart(chart: Flowchart, direction: Direction = chart.dir
     const w = boxWidth(v.node)
     const h = boxHeight(v.node)
     canvas.box(x, y, w, h, CORNERS[v.node.shape])
-    v.node.lines.forEach((line, j) => canvas.text(x + Math.floor((w - textWidth(line)) / 2), y + 1 + j, line, 'label'))
+    // A class box: its name centred, a rule under it, its members from the left.
+    const firstRule = v.node.shape === 'class' ? v.node.lines.indexOf(DIVIDER) : -1
+    v.node.lines.forEach((line, j) => {
+      if (line === DIVIDER) canvas.text(x, y + 1 + j, `├${'─'.repeat(w - 2)}┤`, 'box')
+      else if (firstRule >= 0 && j > firstRule) canvas.text(x + 2, y + 1 + j, line, 'label')
+      else canvas.text(x + Math.floor((w - textWidth(line)) / 2), y + 1 + j, line, 'label')
+    })
   }
   // Where an edge leaves its source, the border opens onto it, unless an arrow lands there.
   const isLanding = (x: number, y: number) => ends.some(({ at }) => Math.abs(at[0] - x) + Math.abs(at[1] - y) === 1)

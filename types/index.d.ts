@@ -23,6 +23,9 @@ export type Stats = {
   /** The newest edits and failures, for the totals' lists (absent in stats from before 0.4.1). */
   edited?: Mark[]
   failed?: Mark[]
+  /** Calls by tool kind, and the highest threat level reached (absent in stats from before 0.7.0). */
+  kinds?: Record<string, number>
+  peak?: number
   turnStartedAt: number | null
 }
 

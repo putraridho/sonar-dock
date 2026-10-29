@@ -52,3 +52,30 @@ export function untilReset(resetsAt: string | undefined, nowMs: number): string 
 export function warningLine(percent: number): number {
   return percent >= 95 ? 95 : percent >= 80 ? 80 : 0
 }
+
+export type UsagePoint = { at: number; percent: number }
+
+/** The pace is read over this much of the recent past, and needs at least the shorter span. */
+export const PACE_WINDOW_MS = 30 * 60_000
+const MIN_PACE_SPAN_MS = 2 * 60_000
+
+// When a window fills at the pace of its recent readings: ms from `nowMs`, or null when it is not
+// rising, too new to tell, or resets first.
+export function fullIn(points: readonly UsagePoint[], resetsAt: string | undefined, nowMs: number): number | null {
+  const recent = points.filter(p => nowMs - p.at <= PACE_WINDOW_MS)
+  const first = recent[0]
+  const last = recent[recent.length - 1]
+  if (!first || !last || last.at - first.at < MIN_PACE_SPAN_MS || last.percent <= first.percent) return null
+  const perMs = (last.percent - first.percent) / (last.at - first.at)
+  const ms = Math.max(0, (100 - last.percent) / perMs - (nowMs - last.at))
+  const reset = resetsAt ? Date.parse(resetsAt) - nowMs : Infinity
+  return Number.isFinite(reset) && ms >= reset ? null : ms
+}
+
+// "~40m", "~2h 10m": a forecast, rounded as loosely as it deserves.
+export function roughly(ms: number): string {
+  const m = Math.max(1, Math.round(ms / 60_000))
+  if (m < 60) return `~${m}m`
+  const tens = Math.round(m / 10) * 10
+  return `~${Math.floor(tens / 60)}h ${String(tens % 60).padStart(2, '0')}m`
+}

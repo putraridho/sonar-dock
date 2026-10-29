@@ -4,7 +4,7 @@ import type { Inspect, LogLine, Mark, Reserves, Stats } from '../../../types'
 import { isCall } from '../../domain/calls'
 import { TOOLS, asToolKind } from '../../domain/tools'
 import { ALERT_LEVEL, threatName } from '../../domain/threat'
-import { untilReset, windowName } from '../../domain/usage'
+import { roughly, untilReset, windowName } from '../../domain/usage'
 import { ease } from '../../lib/math'
 import { typed } from '../../motion/effects'
 import type { Motion } from '../../motion/motion'
@@ -32,10 +32,16 @@ export function ThreatLine({ ui, C, T, level, danger }: Section & { level: numbe
   )
 }
 
-type Gauge = { name: string; pct: number; note: string }
+/** A gauge; a forecast note says when the window fills at its pace, ahead of its reset. */
+type Gauge = { name: string; pct: number; note: string; isForecast?: boolean }
 
-export function gaugesOf(res: Reserves, nowMs: number): Gauge[] {
-  const windows = res.limits.map(l => ({ name: windowName(l.kind), pct: l.percentUsed, note: untilReset(l.resetsAt, nowMs) }))
+export function gaugesOf(res: Reserves, nowMs: number, fullIn: (kind: string) => number | null = () => null): Gauge[] {
+  const windows = res.limits.map(l => {
+    const ms = l.percentUsed < 100 ? fullIn(l.kind) : null
+    return ms === null
+      ? { name: windowName(l.kind), pct: l.percentUsed, note: untilReset(l.resetsAt, nowMs) }
+      : { name: windowName(l.kind), pct: l.percentUsed, note: `full ${roughly(ms)}`, isForecast: true }
+  })
   if (res.contextPercent === null) return windows
   return [...windows, { name: 'Context', pct: res.contextPercent, note: res.costUsd !== null ? `$${res.costUsd.toFixed(2)}` : '' }]
 }
@@ -59,7 +65,7 @@ export function Usage({ ui, C, T, gauges, width, mode, motion }: Section & { gau
             <Box width={6} flexShrink={0} justifyContent="flex-end">
               <T>{`${Math.round(pct)}%`}</T>
             </Box>
-            <T color={C.mute}>{g.note ? `   ${g.note}` : ''}</T>
+            <T color={g.isForecast ? C.amber : C.mute}>{g.note ? `   ${g.note}` : ''}</T>
           </Box>
         )
       })}

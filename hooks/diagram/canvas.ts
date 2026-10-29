@@ -2,7 +2,8 @@
 // cell in, and become box-drawing characters only when the grid is read out, so lines that meet
 // join (├ ┬ ┼) by themselves.
 
-export type Ink = 'box' | 'label' | 'edge' | 'arrow' | 'note' | 'space'
+/** What a cell is, which picks its color; s0 to s5 are a chart's series, in turn. */
+export type Ink = 'box' | 'label' | 'edge' | 'arrow' | 'note' | 'space' | 's0' | 's1' | 's2' | 's3' | 's4' | 's5'
 export type Run = { text: string; ink: Ink }
 export type Rows = Run[][]
 export type Stroke = 'solid' | 'dotted' | 'thick'

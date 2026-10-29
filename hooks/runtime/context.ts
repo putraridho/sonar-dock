@@ -7,6 +7,7 @@ import { FlowMeter } from './flow'
 import { Hud } from './hud'
 import { LimitWarnings } from './limits'
 import { LiveFeed } from './live'
+import { Pace } from './pace'
 import { Scene } from './scene'
 import { Surfaces } from './surfaces'
 
@@ -23,6 +24,9 @@ export type Context = {
   readonly appearance: Appearance
   readonly limits: LimitWarnings
   readonly agents: Agents
+  readonly pace: Pace
+  /** When this module loaded: the session's watch, as the debrief counts it. */
+  readonly startedAt: number
   /** The session's cost when the current turn began. */
   turn: { costAtStart: number | null }
 }
@@ -38,6 +42,8 @@ export function createContext(): Context {
     appearance: new Appearance(),
     limits: new LimitWarnings(),
     agents: new Agents(),
+    pace: new Pace(),
+    startedAt: Date.now(),
     turn: { costAtStart: null },
   }
 }

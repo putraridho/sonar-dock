@@ -30,8 +30,10 @@ export function installNoticeRows(on: On, { motion, surfaces }: Context): void {
     const { Box, Text } = ui
     const m = await read($, mode)
     const C = SWATCHES[m]
-    // The readout is what held when the command ran, not what holds as the row is drawn again.
-    let readout = surfaces.readouts.get(e.requestId)
+    const [headline = '', ...rest] = e.props.text.split('\n')
+    // The readout is what held when the command ran, not what holds as the row is drawn again;
+    // a debrief brings its own lines.
+    let readout = rest.length > 0 ? rest : surfaces.readouts.get(e.requestId)
     if (readout === undefined) {
       const s = await read($, stats)
       const level = await read($, threat)
@@ -43,10 +45,18 @@ export function installNoticeRows(on: On, { motion, surfaces }: Context): void {
     return (
       <SpeakerRow ui={ui} gap={ROW_GAP} speaker={<Pill ui={ui} word="SONAR" p={Math.min(1, p * 3)} background={pillFlash(C.accent, C.screen, p, motion.afterglow(`${e.requestId}:pill`, p))} ink={C.pillInk} />}>
         <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-          <Decrypt ui={ui} text={e.props.text} p={p} color={C.ink} hot={C.accent} screen={C.screen} bold />
-          <Text color={C.mute} wrap="wrap">
-            {readout.join('  ·  ')}
-          </Text>
+          <Decrypt ui={ui} text={headline} p={p} color={C.ink} hot={C.accent} screen={C.screen} bold />
+          {rest.length > 0 ? (
+            readout.map(line => (
+              <Text color={C.mute} wrap="wrap">
+                {line}
+              </Text>
+            ))
+          ) : (
+            <Text color={C.mute} wrap="wrap">
+              {readout.join('  ·  ')}
+            </Text>
+          )}
         </Box>
       </SpeakerRow>
     )

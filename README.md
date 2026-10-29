@@ -18,9 +18,12 @@ Answer `y` to add the marketplace, then pick a scope (user scope loads it in eve
 | --- | --- |
 | `/sonar` | Open the Sonar Dock HUD and the chat skin |
 | `/sonar light` · `/sonar dark` · `/sonar auto` | Pick the palette (auto follows your theme) |
-| `/sonar off` | Stand down and restore the normal chat |
+| `/sonar debrief` | Sum up the session: turns, actions by kind, files touched, peak threat, cost |
+| `/sonar off` | Stand down and restore the normal chat, with the debrief |
 
-While the skin is on, ` ```mermaid ` blocks in Claude's replies are drawn as diagrams: flowcharts (`TD`, `LR`, `BT`, `RL`) and sequence diagrams. Other diagram kinds stay as code.
+While the skin is on, ` ```mermaid ` blocks in Claude's replies are drawn as diagrams: flowcharts (`TD`, `LR`, `BT`, `RL`), sequence, state and class diagrams, and pie charts (as bars). Other diagram kinds stay as code.
+
+The usage gauges forecast: while a window is filling fast enough to run out before it resets, its gauge says when (`full ~40m`), and a toast warns once when that is under 45 minutes away.
 
 The HUD docks as a sidebar in fullscreen terminals that are wide enough (144+ columns when it opens on its own).
 
@@ -40,10 +43,10 @@ claude plugin test .           # run the tests
 | --- | --- | --- |
 | `lib/`, `text/` | Math and formatting helpers | No |
 | `theme/` | One palette per mode; rasters take its numbers, the interface its hex | No |
-| `domain/` | The rules: tool kinds, the threat matrix, usage windows, how calls read, spinner words | No |
+| `domain/` | The rules: tool kinds, the threat matrix, usage windows and their pace, how calls read, the debrief, spinner words | No |
 | `motion/` | The 30 fps frame clock, text effects (decode, glitch, glint), entrances | No |
 | `raster/` | Pure drawings to cells: radar, AI core, shimmer, meter, timeline, voiceprint | No |
-| `diagram/` | Mermaid flowcharts and sequence diagrams laid out in box-drawing characters | No |
+| `diagram/` | Mermaid flowcharts, sequence, state and class diagrams, and pies, laid out in box-drawing characters | No |
 | `runtime/` | Session state: the scene clock, the live feed and stream pacing, the HUD, what is on screen | No |
 | `features/` | Hooks: lifecycle and clocks, telemetry, the stream, the chat skin, the pane | Yes |
 

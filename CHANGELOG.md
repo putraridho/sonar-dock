@@ -2,6 +2,16 @@
 
 What changed in each version of Sonar Dock, newest first.
 
+## 0.7.0 — 2026-10-29
+
+More diagrams, a forecast, and a debrief.
+
+- State diagrams: states in rounded boxes, `[*]` as a start dot and an end dot, choices as diamonds, transitions with their words; composites are flattened and notes left out.
+- Class diagrams: each class a box with its name over a rule, then its fields and its methods; inheritance (△), composition (◆), aggregation (◇) and plain or dotted links, parents above.
+- Pie charts are drawn as bars, largest first, each in a color of the palette, with the share (and the value under `showData`).
+- The usage gauges forecast: a window filling fast enough to run out before it resets says when (`full ~40m`) in place of the reset time, and a toast warns once when that is under 45 minutes away.
+- `/sonar debrief` sums up the session: how long on watch, turns, actions by kind, edits and files touched, errors, the peak threat and the cost. `/sonar off` ends with it.
+
 ## 0.6.0 — 2026-10-29
 
 The matrix reads more than commands.
