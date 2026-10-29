@@ -26,6 +26,20 @@ describe('the threat matrix reads the command', () => {
     expect(await ui.find({ type: 'Text', text: /recursive delete/ })).toBeDefined()
     await ui.unmount()
   })
+
+  test('an edit to a key file raises it too; a message sent out only nudges it', async ($, on) => {
+    on('tool.call', async () => ({ result: {} }) as never)
+    await $.tool.call({ tool: 'mcp__plugin_slack_slack__slack_send_message', tool_use_id: 'toolu_s', channel_id: 'C1', message: 'hi' } as never)
+    const nudged = await $.ui.mount(PANE as Parameters<typeof $.ui.mount>[0])
+    expect(await nudged.find({ type: 'Text', text: /^Guarded$/ })).toBeDefined()
+    expect(await nudged.find({ type: 'Text', text: /outbound message/ })).toBeDefined()
+    await nudged.unmount()
+    await $.tool.call({ tool: 'Write', tool_use_id: 'toolu_w', file_path: '/home/me/.ssh/config', content: '' } as never)
+    const raised = await $.ui.mount({ ...PANE, requestId: 'sonar-dock' } as Parameters<typeof $.ui.mount>[0])
+    expect(await raised.find({ type: 'Text', text: /^Critical$/ })).toBeDefined()
+    expect(await raised.find({ type: 'Text', text: /key tamper/ })).toBeDefined()
+    await raised.unmount()
+  })
 })
 
 test('the activity log shows prompts and which subagent made a call', async ($, on) => {

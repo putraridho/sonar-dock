@@ -6,7 +6,7 @@ import { atom, read, update } from 'claude-code'
 
 import type { LogLine, Mark, Stats, TurnRecord } from '../../types'
 import { PROMPT_KIND, describeCall, failureOf, isCall, isFromPerson, isRepeatPrompt, promptLine, tagOf } from '../domain/calls'
-import { DANGER_STEP, FAILURE_FLOOR, detectThreat, threatName } from '../domain/threat'
+import { DANGER_STEP, FAILURE_FLOOR, threatName, threatOf } from '../domain/threat'
 import { TOOLS, toolKind } from '../domain/tools'
 import type { ToolKind } from '../domain/tools'
 import { fiveHourPercent } from '../domain/usage'
@@ -55,7 +55,7 @@ export function installTelemetry(on: On, ctx: Context): void {
     scene.toolStarted(kind, tag)
     const blip = hud.addBlip(kind, tag, scene.now(), agent)
     // The command itself, not the description given for it: a calm description can hide a rm -rf.
-    if (e.tool === 'Bash') await raiseAlarm($, ctx, e.command)
+    await raiseAlarm($, ctx, e.tool, e)
     await update($, log, list => [...list, { id, at: Date.now(), tool: TOOLS[kind].tag, detail, state: 'run', kind, agent } satisfies LogLine].slice(-LOG_LIMIT))
     $.ui.status(hud.statusText(`${TOOLS[kind].tag} ${fit(detail, STATUS_DETAIL).trim()}`))
 
@@ -92,13 +92,15 @@ export function installTelemetry(on: On, ctx: Context): void {
   })
 }
 
-// A shell command that matches the threat matrix raises the level and sounds the alarm.
-async function raiseAlarm($: EngineInterface, ctx: Context, command: string): Promise<void> {
-  const danger = detectThreat(command)
+// A call that matches the threat matrix raises the level by its weight and sounds the alarm: a red
+// alert for the dangerous ones, a caution for the rest.
+async function raiseAlarm($: EngineInterface, ctx: Context, tool: string, input: unknown): Promise<void> {
+  const danger = threatOf(tool, input)
   if (!danger) return
-  await update($, threat, () => ctx.hud.setLevel(ctx.hud.level + DANGER_STEP))
-  await update($, alert, () => danger)
-  $.ui.toast(`⚠ RED ALERT ▸ ${danger} DETECTED`, { timeoutMs: ALERT_TOAST_MS })
+  await update($, threat, () => ctx.hud.setLevel(ctx.hud.level + danger.step))
+  await update($, alert, () => danger.name)
+  const word = danger.step >= DANGER_STEP ? 'RED ALERT' : 'CAUTION'
+  $.ui.toast(`⚠ ${word} ▸ ${danger.name} DETECTED`, { timeoutMs: ALERT_TOAST_MS })
 }
 
 function tally(s: Stats, kind: ToolKind, isFailed: boolean, path: unknown, mark: Mark): Stats {

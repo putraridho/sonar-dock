@@ -1,6 +1,6 @@
 // What kind of work a tool call is, and every name each kind goes by.
 
-export type ToolKind = 'bash' | 'edit' | 'read' | 'search' | 'agent' | 'web' | 'mcp' | 'other'
+export type ToolKind = 'bash' | 'edit' | 'read' | 'search' | 'agent' | 'web' | 'mcp' | 'skill' | 'page' | 'message' | 'clock' | 'other'
 
 type ToolNames = {
   /** The radar blip's letter. */
@@ -21,6 +21,10 @@ export const TOOLS: Readonly<Record<ToolKind, ToolNames>> = {
   agent: { glyph: 'A', tag: 'AGNT', pill: 'AGENT', noun: 'agent' },
   web: { glyph: 'W', tag: 'WEB', pill: 'WEB', noun: 'web' },
   mcp: { glyph: 'M', tag: 'LINK', pill: 'LINK', noun: 'connector' },
+  skill: { glyph: 'K', tag: 'SKIL', pill: 'SKILL', noun: 'skill' },
+  page: { glyph: 'P', tag: 'PAGE', pill: 'PAGE', noun: 'page' },
+  message: { glyph: 'X', tag: 'COMM', pill: 'SEND', noun: 'message' },
+  clock: { glyph: 'C', tag: 'CLCK', pill: 'WAIT', noun: 'schedule' },
   other: { glyph: 'T', tag: 'TOOL', pill: 'TOOL', noun: 'tool' },
 }
 
@@ -32,10 +36,33 @@ const KIND_OF: Readonly<Record<string, ToolKind>> = {
   Read: 'read',
   Grep: 'search',
   Glob: 'search',
+  LSP: 'search',
   Agent: 'agent',
   Task: 'agent',
+  Workflow: 'agent',
+  TaskCreate: 'agent',
+  TaskStop: 'agent',
   WebFetch: 'web',
   WebSearch: 'web',
+  Skill: 'skill',
+  ToolSearch: 'skill',
+  ListSkills: 'skill',
+  SearchSkills: 'skill',
+  Artifact: 'page',
+  ArtifactData: 'page',
+  ArtifactComments: 'page',
+  ArtifactCheck: 'page',
+  SendMessage: 'message',
+  SendUserMessage: 'message',
+  PushNotification: 'message',
+  ListAgents: 'message',
+  FetchInboxMessage: 'message',
+  Monitor: 'clock',
+  ScheduleWakeup: 'clock',
+  CronCreate: 'clock',
+  CronDelete: 'clock',
+  CronList: 'clock',
+  RemoteTrigger: 'clock',
 }
 
 export function toolKind(tool: string): ToolKind {

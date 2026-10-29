@@ -26,6 +26,13 @@ export type Blip = {
 const BLIP_LIFE_MS = 60_000
 const SWEEP_RAD_PER_S = 1.4
 const LEGEND: readonly ToolKind[] = ['bash', 'edit', 'read', 'search', 'agent', 'web']
+const LEGEND_ROWS = 7
+
+// The legend: the usual six, then any other kind on the scope, while there is room.
+export function legendOf(blips: readonly Pick<Blip, 'kind'>[]): ToolKind[] {
+  const extra = [...new Set(blips.map(b => b.kind))].filter(k => !LEGEND.includes(k))
+  return [...LEGEND, ...extra].slice(0, LEGEND_ROWS)
+}
 
 export const SCOPE_ROWS = 16
 export const SIGNAL_ROWS = 4
@@ -190,7 +197,7 @@ export function drawRadar(columns: number, rows: number, now: number, blips: rea
     write(1, 11, target?.blip.tag ? target.blip.tag.slice(0, scopeLeft - 1) : '——', target ? mix(colorOf(target.blip), P.hi, 0.2) : P.label)
     write(1, 13, isAlert ? '▲ ALERT' : 'TRACKING', isAlert ? mix(P.red, P.hi, 0.3 * pulse) : P.label)
     const lx = columns - 7
-    LEGEND.forEach((kind, n) => {
+    legendOf(live).forEach((kind, n) => {
       write(lx, 1 + n * 2, '⣿', P.tools[kind])
       write(lx + 2, 1 + n * 2, TOOLS[kind].tag, P.label)
     })

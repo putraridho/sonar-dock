@@ -2,6 +2,17 @@
 
 What changed in each version of Sonar Dock, newest first.
 
+## 0.6.0 — 2026-10-29
+
+The matrix reads more than commands.
+
+- Edits are weighed by the file they write: keys and `~/.ssh` sound a red alert, `.env` and credential files a caution, lockfiles a nudge.
+- Shell commands catch more: `rm -r` without `-f`, disk overwrites (`dd` to a device, `mkfs`), package publishes and pushes to `main` or `master`.
+- Connector calls that send something out (a message, a post, a reply) raise the threat a step; drafts and reads do not.
+- Each signature raises the level by its own weight, and the toast says RED ALERT or CAUTION to match.
+- Skills, artifacts, messages to other agents and scheduling tools get their own kinds: their own pill, color and radar letter. Workflows count as agents, LSP as a search. The radar's legend adds any such kind on the scope.
+- Sonar Dock has an icon.
+
 ## 0.5.0 — 2026-10-13
 
 Replies draw their mermaid diagrams.

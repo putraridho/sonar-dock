@@ -2,14 +2,14 @@ import type { UiOpenResult } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
 import { cleanCommand, mcpLine, tagOf } from '../hooks/domain/calls'
-import { detectThreat } from '../hooks/domain/threat'
+import { DANGER_STEP, detectThreat, threatOf } from '../hooks/domain/threat'
 import { toolKind } from '../hooks/domain/tools'
 import { limitName, untilReset } from '../hooks/domain/usage'
 import { seedOf } from '../hooks/lib/math'
 import { decode, glint, glitchSegments } from '../hooks/motion/effects'
 import { encodeCells } from '../hooks/raster/cells'
 import { CORE_ROWS, drawCore } from '../hooks/raster/core'
-import { drawRadar, radarSize } from '../hooks/raster/radar'
+import { drawRadar, legendOf, radarSize } from '../hooks/raster/radar'
 import { drawShimmer, drawTimeline, drawVoiceprint } from '../hooks/raster/strips'
 import { hasMarkdownTable } from '../hooks/text/format'
 import { gaugeColor } from '../hooks/theme/palette'
@@ -40,6 +40,33 @@ describe('threat matrix', () => {
     expect(detectThreat('npm test')).toBe(null)
     expect(detectThreat('git push origin feature')).toBe(null)
     expect(detectThreat('rm notes.txt')).toBe(null)
+    expect(detectThreat('rm -f notes.txt')).toBe(null)
+    expect(detectThreat('git push origin maintenance')).toBe(null)
+  })
+
+  test('catches disk overwrites, publishes and pushes to main', async () => {
+    expect(detectThreat('rm -r build')).toBe('RECURSIVE DELETE')
+    expect(detectThreat('dd if=img.iso of=/dev/disk4 bs=4m')).toBe('DISK OVERWRITE')
+    expect(detectThreat('mkfs.ext4 /dev/sdb1')).toBe('DISK OVERWRITE')
+    expect(detectThreat('npm publish --access public')).toBe('PACKAGE PUBLISH')
+    expect(detectThreat('git push origin main')).toBe('PUSH TO MAIN')
+    expect(threatOf('Bash', { command: 'git push origin HEAD:master' })).toEqual({ name: 'PUSH TO MAIN', step: 2 })
+  })
+
+  test('reads the file an edit writes, weighed by what it holds', async () => {
+    expect(threatOf('Write', { file_path: '/home/me/.ssh/authorized_keys' })).toEqual({ name: 'KEY TAMPER', step: DANGER_STEP })
+    expect(threatOf('Edit', { file_path: '/repo/.env.local' })?.name).toBe('SECRETS TOUCHED')
+    expect(threatOf('Edit', { file_path: '/repo/package-lock.json' })).toEqual({ name: 'LOCKFILE EDIT', step: 1 })
+    expect(threatOf('Edit', { file_path: '/repo/src/env.ts' })).toBe(null)
+    expect(threatOf('Read', { file_path: '/repo/.env' })).toBe(null)
+  })
+
+  test('marks connector calls that send something out, but not drafts or reads', async () => {
+    expect(threatOf('mcp__plugin_slack_slack__slack_send_message', { text: 'hi' })).toEqual({ name: 'OUTBOUND MESSAGE', step: 1 })
+    expect(threatOf('mcp__claude_ai_Gmail__reply', {})?.name).toBe('OUTBOUND MESSAGE')
+    expect(threatOf('mcp__plugin_slack_slack__slack_send_message_draft', {})).toBe(null)
+    expect(threatOf('mcp__claude_ai_Gmail__create_draft', {})).toBe(null)
+    expect(threatOf('mcp__plugin_slack_slack__slack_read_channel', {})).toBe(null)
   })
 })
 
@@ -60,6 +87,17 @@ describe('radar', () => {
     expect(toolKind('Bash')).toBe('bash')
     expect(toolKind('Write')).toBe('edit')
     expect(toolKind('mcp__linear__get_issue')).toBe('mcp')
+    expect(toolKind('Skill')).toBe('skill')
+    expect(toolKind('Artifact')).toBe('page')
+    expect(toolKind('SendMessage')).toBe('message')
+    expect(toolKind('ScheduleWakeup')).toBe('clock')
+    expect(toolKind('Workflow')).toBe('agent')
+    expect(toolKind('LSP')).toBe('search')
+  })
+
+  test('the legend adds the kinds on the scope beyond the usual six', async () => {
+    expect(legendOf([])).toEqual(['bash', 'edit', 'read', 'search', 'agent', 'web'])
+    expect(legendOf([{ kind: 'bash' }, { kind: 'page' }, { kind: 'skill' }])).toEqual(['bash', 'edit', 'read', 'search', 'agent', 'web', 'page'])
   })
 })
 
