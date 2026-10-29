@@ -35,8 +35,10 @@ export function installLifecycle(on: On, ctx: Context): void {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'sonar', description: 'Open the Sonar Dock HUD: radar, threat level and live telemetry (debrief for a session summary)' })
     await update($, now, () => Date.now())
-    // The watch runs from the session's start, kept in state: a reload of the module keeps it.
-    await update($, stats, s => (s.startedAt === undefined ? { ...s, startedAt: Date.now() } : s))
+    // The watch runs from the session's start, kept in state. A reload runs this hook again: the
+    // start already kept stays, and a session from before it was kept counts from its oldest record.
+    const list = await read($, log)
+    await update($, stats, s => (s.startedAt === undefined ? { ...s, startedAt: watchStart(s, list, Date.now()) } : s))
     await syncMode($, appearance)
     // The skin stays as the person last left it, across sessions, until /sonar off.
     if ((await $.store.get(SKIN_KEY)) === true) await update($, skin, () => true)

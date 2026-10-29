@@ -59,9 +59,11 @@ describe('the debrief', () => {
     expect(watchLength(125 * MIN)).toBe('2h 05m')
   })
 
-  test('the watch runs from the session start kept in stats, not from a reload', async () => {
+  test('the watch runs from the session start kept in stats, or the oldest record if that is earlier', async () => {
     const log = [{ at: 5000 }, { at: 9000 }]
     expect(watchStart({ ...INITIAL.stats, startedAt: 1000 }, log, 99_000)).toBe(1000)
+    // A start kept late, at a reload, gives way to the records before it.
+    expect(watchStart({ ...INITIAL.stats, startedAt: 90_000 }, log, 99_000)).toBe(5000)
     expect(watchStart({ ...INITIAL.stats, failed: [{ at: 3000, tool: 'BASH', detail: 'x' }] }, log, 99_000)).toBe(3000)
     expect(watchStart(INITIAL.stats, [], 99_000)).toBe(99_000)
   })

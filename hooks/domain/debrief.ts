@@ -13,10 +13,10 @@ export function watchLength(ms: number): string {
   return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`
 }
 
-// When the watch began: the session's start as kept, else (for stats from before it was kept)
-// the oldest moment still on record.
+// When the watch began: the earliest of the session's start as kept and the oldest record. A real
+// start comes before every record; one kept late (a reload in a session from before 0.7.2) does not.
 export function watchStart(s: Stats, log: readonly { at: number }[], loadedAt: number): number {
-  return s.startedAt ?? Math.min(loadedAt, ...log.map(l => l.at), ...[...(s.edited ?? []), ...(s.failed ?? [])].map(m => m.at))
+  return Math.min(s.startedAt ?? loadedAt, loadedAt, ...log.map(l => l.at), ...[...(s.edited ?? []), ...(s.failed ?? [])].map(m => m.at))
 }
 
 // The headline, then the counts, the calls by kind (most first), and what it cost.

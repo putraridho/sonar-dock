@@ -2,6 +2,12 @@
 
 What changed in each version of Sonar Dock, newest first.
 
+## 0.7.2 — 2026-10-29
+
+The watch counts from the first contact.
+
+- The debrief's time on watch no longer reads 0m after `/plugin` reloads in a session that began before 0.7.1: it counts from the oldest call on record whenever that is earlier than the start kept.
+
 ## 0.7.1 — 2026-10-29
 
 The watch survives a reload.
