@@ -4,7 +4,7 @@
 import type { EngineInterface, On } from 'claude-code'
 import { atom, read, update } from 'claude-code'
 
-import { debriefLines } from '../domain/debrief'
+import { debriefLines, watchStart } from '../domain/debrief'
 import { fiveHourPercent, roughly, toReserves, windowName } from '../domain/usage'
 import type { Appearance } from '../runtime/appearance'
 import { THEME_KEY, resolveMode } from '../runtime/appearance'
@@ -22,6 +22,7 @@ const mode = atom({ plugin: 'sonar-dock', key: 'mode' } as const, INITIAL.mode)
 const skin = atom({ plugin: 'sonar-dock', key: 'skin' } as const, INITIAL.skin)
 const reserves = atom({ plugin: 'sonar-dock', key: 'reserves' } as const, INITIAL.reserves)
 const stats = atom({ plugin: 'sonar-dock', key: 'stats' } as const, INITIAL.stats)
+const log = atom({ plugin: 'sonar-dock', key: 'log' } as const, INITIAL.log)
 
 const SKIN_KEY = 'skin'
 const PANE_SIZE = { columns: 66, rows: 40 }
@@ -34,6 +35,8 @@ export function installLifecycle(on: On, ctx: Context): void {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'sonar', description: 'Open the Sonar Dock HUD: radar, threat level and live telemetry (debrief for a session summary)' })
     await update($, now, () => Date.now())
+    // The watch runs from the session's start, kept in state: a reload of the module keeps it.
+    await update($, stats, s => (s.startedAt === undefined ? { ...s, startedAt: Date.now() } : s))
     await syncMode($, appearance)
     // The skin stays as the person last left it, across sessions, until /sonar off.
     if ((await $.store.get(SKIN_KEY)) === true) await update($, skin, () => true)
@@ -65,7 +68,11 @@ export function installLifecycle(on: On, ctx: Context): void {
       await syncMode($, appearance)
       return { text: `Sonar Dock palette: ${arg === 'auto' ? `auto (${appearance.current})` : arg}.` }
     }
-    const debrief = async () => debriefLines(await read($, stats), (await read($, reserves)).costUsd, Date.now() - ctx.startedAt).join('\n')
+    const debrief = async () => {
+      const s = await read($, stats)
+      const started = watchStart(s, await read($, log), ctx.startedAt)
+      return debriefLines(s, (await read($, reserves)).costUsd, Date.now() - started).join('\n')
+    }
     if (arg === 'debrief') return { text: await debrief() }
     const isOn = arg !== 'off'
     await update($, skin, () => isOn)

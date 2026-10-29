@@ -25,7 +25,7 @@ export type Context = {
   readonly limits: LimitWarnings
   readonly agents: Agents
   readonly pace: Pace
-  /** When this module loaded: the session's watch, as the debrief counts it. */
+  /** When this module loaded: a reload loads it again, so the session's start is kept in its stats. */
   readonly startedAt: number
   /** The session's cost when the current turn began. */
   turn: { costAtStart: number | null }

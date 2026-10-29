@@ -1,7 +1,7 @@
 import type { UiOpenResult } from 'claude-code'
 import { describe, expect, test } from 'claude-code/testing'
 
-import { debriefLines, watchLength } from '../hooks/domain/debrief'
+import { debriefLines, watchLength, watchStart } from '../hooks/domain/debrief'
 import { fullIn, roughly } from '../hooks/domain/usage'
 import { gaugesOf } from '../hooks/features/pane/sections'
 import { Pace } from '../hooks/runtime/pace'
@@ -57,6 +57,13 @@ describe('the debrief', () => {
     ])
     expect(debriefLines(INITIAL.stats, null, 0)).toEqual(['DEBRIEF ▸ 0m on watch', 'No contacts this session.'])
     expect(watchLength(125 * MIN)).toBe('2h 05m')
+  })
+
+  test('the watch runs from the session start kept in stats, not from a reload', async () => {
+    const log = [{ at: 5000 }, { at: 9000 }]
+    expect(watchStart({ ...INITIAL.stats, startedAt: 1000 }, log, 99_000)).toBe(1000)
+    expect(watchStart({ ...INITIAL.stats, failed: [{ at: 3000, tool: 'BASH', detail: 'x' }] }, log, 99_000)).toBe(3000)
+    expect(watchStart(INITIAL.stats, [], 99_000)).toBe(99_000)
   })
 
   test('/sonar debrief answers with it, and the skin draws its lines under the headline', async ($, on) => {

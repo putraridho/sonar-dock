@@ -2,6 +2,13 @@
 
 What changed in each version of Sonar Dock, newest first.
 
+## 0.7.1 — 2026-10-29
+
+The watch survives a reload.
+
+- The debrief's time on watch runs from the session's start, kept across `/reload-plugins`; it no longer resets to 0m.
+- For a session that began before 0.7.1, it counts from the oldest call still on record.
+
 ## 0.7.0 — 2026-10-29
 
 More diagrams, a forecast, and a debrief.
