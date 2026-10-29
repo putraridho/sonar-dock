@@ -1,14 +1,17 @@
 // Mermaid in a reply: the fenced blocks picked out of the markdown, and each drawn in cells
-// where its kind is one Sonar Dock draws (flowcharts, sequence, state and class diagrams, pies).
+// where its kind is one Sonar Dock draws (flowcharts, sequence, state and class diagrams, pies,
+// gantt charts and timelines).
 
 import { rowWidth } from './canvas'
 import type { Rows } from './canvas'
 import { parseClasses } from './classes'
 import { drawFlowchart, parseFlowchart } from './flowchart'
 import type { Flowchart } from './flowchart'
+import { drawGantt, parseGantt } from './gantt'
 import { drawPie, parsePie } from './pie'
 import { drawSequence, parseSequence } from './sequence'
 import { parseState } from './state'
+import { drawTimeline, parseTimeline } from './timeline'
 
 export type { Ink, Rows, Run } from './canvas'
 
@@ -31,6 +34,10 @@ export function drawMermaid(source: string, columns = Infinity): { title: string
   if (seq) return { title: 'sequence', rows: drawSequence(seq) }
   const pie = parsePie(source)
   if (pie) return { title: pie.title ? `pie · ${pie.title}` : 'pie', rows: drawPie(pie) }
+  const gantt = parseGantt(source)
+  if (gantt) return { title: gantt.title ? `gantt · ${gantt.title}` : 'gantt', rows: drawGantt(gantt, Number.isFinite(columns) ? columns : undefined) }
+  const timeline = parseTimeline(source)
+  if (timeline) return { title: timeline.title ? `timeline · ${timeline.title}` : 'timeline', rows: drawTimeline(timeline) }
   return null
 }
 

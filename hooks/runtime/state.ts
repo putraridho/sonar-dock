@@ -13,7 +13,7 @@ export const BOOT_DONE = 99
 
 export const INITIAL: { readonly [K in keyof State]: State[K] } = {
   log: [],
-  stats: { ops: 0, edits: 0, errors: 0, turns: 0, files: [], edited: [], failed: [], kinds: {}, peak: 0, turnStartedAt: null },
+  stats: { ops: 0, edits: 0, errors: 0, turns: 0, files: [], edited: [], failed: [], kinds: {}, heat: {}, peak: 0, turnStartedAt: null },
   threat: 0,
   alert: null,
   boot: BOOT_DONE,

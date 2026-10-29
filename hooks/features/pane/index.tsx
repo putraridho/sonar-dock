@@ -14,7 +14,7 @@ import { BOOT_DONE, INITIAL } from '../../runtime/state'
 import { Boot } from './boot'
 import { screenText } from './kit'
 import type { PaneUi } from './kit'
-import { ActivityLog, INSPECT_ROWS, Inspector, ThreatLine, Totals, Usage, gaugesOf, linesThatFit } from './sections'
+import { ActivityLog, INSPECT_ROWS, Inspector, Roster, ThreatLine, Totals, Usage, gaugesOf, linesThatFit, rosterHeight } from './sections'
 
 // State this file reads or writes.
 const log = atom({ plugin: 'sonar-dock', key: 'log' } as const, INITIAL.log)
@@ -31,7 +31,7 @@ const inspect = atom({ plugin: 'sonar-dock', key: 'inspect' } as const, INITIAL.
 const CHROME_ROWS = 21
 const MIN_LOG_ROWS = 3
 
-export function installPane(on: On, { motion, scene, surfaces, hud, pace }: Context): void {
+export function installPane(on: On, { motion, scene, surfaces, hud, pace, agents }: Context): void {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const ui = $.ui.resolve(e) as unknown as PaneUi
     const { Box } = ui
@@ -65,8 +65,9 @@ export function installPane(on: On, { motion, scene, surfaces, hud, pace }: Cont
       radar = <Raster key="radar" columns={size.columns} rows={size.rows} cells={encodeCells(drawRadar(size.columns, size.rows, scene.now(), hud.blips, level, m))} />
     }
     const isEngaged = s.turnStartedAt !== null
-    // An open list takes its rows from the activity log.
-    const logRows = Math.max(MIN_LOG_ROWS, (e.viewport?.rows ?? 40) - size.rows - CHROME_ROWS - (open === null ? 0 : INSPECT_ROWS + 1))
+    const roster = agents.roster(t)
+    // An open list and the roster take their rows from the activity log.
+    const logRows = Math.max(MIN_LOG_ROWS, (e.viewport?.rows ?? 40) - size.rows - CHROME_ROWS - (open === null ? 0 : INSPECT_ROWS + 1) - rosterHeight(roster))
 
     return (
       <Box flexDirection="column" backgroundColor={C.screen} paddingX={2} paddingY={1}>
@@ -86,6 +87,8 @@ export function installPane(on: On, { motion, scene, surfaces, hud, pace }: Cont
         {blank}
         {radar}
         {blank}
+        <Roster ui={ui} C={C} T={T} roster={roster} width={width} />
+        {roster.length > 0 && blank}
         <T color={C.mute} bold>Activity</T>
         <ActivityLog ui={ui} C={C} T={T} lines={linesThatFit(list, logRows, width)} width={width} motion={motion} />
         {blank}

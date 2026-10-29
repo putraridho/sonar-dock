@@ -94,12 +94,47 @@ describe('pie charts', () => {
   })
 })
 
+describe('gantt charts', () => {
+  test('a ruler of dates, a row per task under its section, bars placed in time', async () => {
+    const source = 'gantt\n  title Plan\n  dateFormat YYYY-MM-DD\n  section Build\n  Heat :done, h1, 2026-11-01, 4d\n  Roster :after h1, 4d\n  section Ship\n  Fix :crit, 2026-11-03, 2026-11-05\n  Out :milestone, 2026-11-09, 0d'
+    const drawn = drawMermaid(source, 60)!
+    const text = lines(drawn.rows)
+    expect(drawn.title).toBe('gantt · Plan')
+    expect(text[0]).toContain('2026-11-01')
+    expect(text[0]).toContain('2026-11-09')
+    const row = (name: string) => text.find(l => l.includes(name))!
+    expect(row('Heat')).toContain('▒')
+    // Roster starts where Heat ends.
+    expect(row('Roster').indexOf('█')).toBeGreaterThanOrEqual(row('Heat').lastIndexOf('▒'))
+    expect(row('Out')).toContain('◆')
+    expect(text.indexOf(row('Build'))).toBeLessThan(text.indexOf(row('Heat')))
+    expect(drawn.rows.some(r => r.some(run => run.ink === 'crit'))).toBe(true)
+    expect(Math.max(...drawn.rows.map(rowWidth))).toBeLessThanOrEqual(60)
+  })
+
+  test('a date format it does not read stays as code', async () => {
+    expect(drawMermaid('gantt\n  dateFormat DD-MM-YYYY\n  A :01-11-2026, 3d')).toBe(null)
+  })
+})
+
+describe('timelines', () => {
+  test('a dot per period on a spine, its events beside it, sections as rules', async () => {
+    const drawn = drawMermaid('timeline\n  title Ships\n  section Oct\n    0.5 : mermaid\n  section Nov\n    0.8 : heat : roster\n        : gantt')!
+    const text = lines(drawn.rows)
+    expect(drawn.title).toBe('timeline · Ships')
+    expect(text.filter(l => l.includes('●')).length).toBe(2)
+    for (const word of ['Oct', 'Nov', 'mermaid', 'heat', 'roster', 'gantt']) expect(text.some(l => l.includes(word))).toBe(true)
+    expect(text.some(l => l.includes('┼'))).toBe(true)
+    expect(text.findIndex(l => l.includes('Nov'))).toBeLessThan(text.findIndex(l => l.includes('heat')))
+  })
+})
+
 describe('a reply with mermaid', () => {
   test('splits into words and diagrams; a kind it cannot draw stays markdown', async () => {
     const parts = splitMermaid(fence('graph TD\n  A --> B'))
     expect(parts.map(p => p.kind)).toEqual(['markdown', 'diagram', 'markdown'])
-    const gantt = fence('gantt\n  title Plan\n  Build :a1, 2026-01-01, 3d')
-    expect(splitMermaid(gantt)).toEqual([{ kind: 'markdown', text: gantt }])
+    const mindmap = fence('mindmap\n  root((Plan))\n    Build')
+    expect(splitMermaid(mindmap)).toEqual([{ kind: 'markdown', text: mindmap }])
   })
 
   test('keeps the skin and draws the diagram in place of the code block', async ($, on) => {

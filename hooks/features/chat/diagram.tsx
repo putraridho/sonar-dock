@@ -13,7 +13,7 @@ export function Diagram(props: { ui: Pick<Ui, 'Box' | 'Text'>; title: string; ro
   const { rows, p, C } = props
   const series = SERIES.map(kind => C.tool(kind))
   const inks: Record<Ink, string | undefined> = {
-    box: C.accent, label: C.ink, edge: C.grid, arrow: C.accent, note: C.amber, space: undefined,
+    box: C.accent, label: C.ink, edge: C.grid, arrow: C.accent, note: C.amber, space: undefined, crit: C.red,
     s0: series[0], s1: series[1], s2: series[2], s3: series[3], s4: series[4], s5: series[5],
   }
   const shown = p >= 1 ? rows.length : Math.floor(p * (rows.length + 1))

@@ -2,6 +2,7 @@
 
 import type { Inspect, LogLine, Mark, Reserves, Stats } from '../../../types'
 import { isCall } from '../../domain/calls'
+import { warmth } from '../../domain/heat'
 import { TOOLS, asToolKind } from '../../domain/tools'
 import { ALERT_LEVEL, threatName } from '../../domain/threat'
 import { roughly, untilReset, windowName } from '../../domain/usage'
@@ -9,7 +10,8 @@ import { ease } from '../../lib/math'
 import { typed } from '../../motion/effects'
 import type { Motion } from '../../motion/motion'
 import { agentTag } from '../../runtime/agents'
-import { clock, noun, sentenceCase } from '../../text/format'
+import type { RosterRow } from '../../runtime/agents'
+import { clock, noun, plural, sentenceCase } from '../../text/format'
 import { gaugeColor, mixHex } from '../../theme/palette'
 import type { Mode, Swatch } from '../../theme/palette'
 import { LABEL_W } from './kit'
@@ -174,9 +176,92 @@ export function inspected(stats: Stats, open: Inspect): { rows: { time?: number;
   return { rows: all.slice(0, room), more: all.length - Math.min(all.length, room) }
 }
 
+/** A heat row's bar, at its longest. */
+const HEAT_BAR = 12
+const HEAT_COUNTS_W = 14
+
+// The edited files, hottest first: edits weigh twice what reads do.
+export function heatRows(stats: Stats): { rows: { path: string; e: number; r: number }[]; more: number } {
+  const heat = stats.heat ?? {}
+  const all = stats.files.map(path => ({ path, e: heat[path]?.e ?? 0, r: heat[path]?.r ?? 0 })).sort((a, b) => warmth(b) - warmth(a))
+  const room = all.length > INSPECT_ROWS ? INSPECT_ROWS - 1 : INSPECT_ROWS
+  return { rows: all.slice(0, room), more: all.length - Math.min(all.length, room) }
+}
+
+// Each edited file with a bar of its edits, then its reads, as long as it is hot.
+function Heat({ ui, C, T, stats, width }: Section & { stats: Stats; width: number }) {
+  const { Box } = ui
+  const { rows, more } = heatRows(stats)
+  const top = Math.max(1, ...rows.map(r => r.e + r.r))
+  const pathW = Math.max(8, width - HEAT_BAR - HEAT_COUNTS_W - 2)
+  return (
+    <Box flexDirection="column" width={width}>
+      {rows.map(r => {
+        const long = Math.max(1, Math.round(((r.e + r.r) / top) * HEAT_BAR))
+        const edits = r.e + r.r === 0 ? long : Math.round((r.e / (r.e + r.r)) * long)
+        return (
+          <Box flexDirection="row" width={width}>
+            <Box width={pathW} flexShrink={0}>
+              <T color={C.ink}>{tailOf(r.path, pathW - 1)}</T>
+            </Box>
+            <Box width={HEAT_BAR + 2} flexShrink={0}>
+              <T color={C.tool('edit')}>{'█'.repeat(edits)}</T>
+              <T color={C.tool('read')}>{'█'.repeat(long - edits)}</T>
+            </Box>
+            <T color={C.mute}>{r.e + r.r === 0 ? 'edited' : `${r.e}e · ${r.r}r`}</T>
+          </Box>
+        )
+      })}
+      {more > 0 && <T color={C.mute}>{`+ ${more} more`}</T>}
+    </Box>
+  )
+}
+
+/** Subagents the roster lists, its "more" line included. */
+export const ROSTER_ROWS = 4
+
+// The rows the roster takes: none without subagents, else its title, its agents, and a blank.
+export function rosterHeight(roster: readonly RosterRow[]): number {
+  return roster.length === 0 ? 0 : Math.min(ROSTER_ROWS, roster.length) + 2
+}
+
+// The subagents: who is at work, how many calls each has made, and the latest.
+export function Roster({ ui, C, T, roster, width }: Section & { roster: RosterRow[]; width: number }) {
+  const { Box } = ui
+  if (roster.length === 0) return null
+  const room = roster.length > ROSTER_ROWS ? ROSTER_ROWS - 1 : ROSTER_ROWS
+  const callsW = 10
+  return (
+    <Box flexDirection="column" width={width}>
+      <T color={C.mute} bold>Agents</T>
+      {roster.slice(0, room).map(a => (
+        <Box flexDirection="row" width={width}>
+          <Box width={TIME_W} flexShrink={0}>
+            <T color={C.tool('agent')} bold>{agentTag(a.agent)}</T>
+          </Box>
+          <Box width={MARK_W} flexShrink={0}>
+            <T color={a.isWorking ? C.amber : C.mute}>{a.isWorking ? '●' : '○'}</T>
+          </Box>
+          <Box width={callsW} flexShrink={0}>
+            <T color={C.mute}>{plural(a.calls, 'call')}</T>
+          </Box>
+          <Box width={LABEL_W} flexShrink={0}>
+            <T color={C.tool(a.kind)}>{sentenceCase(TOOLS[a.kind].noun)}</T>
+          </Box>
+          <Box flexGrow={1} flexShrink={1}>
+            <T color={a.isWorking ? C.ink : C.mute}>{tailOf(a.last, Math.max(4, width - TIME_W - MARK_W - callsW - LABEL_W))}</T>
+          </Box>
+        </Box>
+      ))}
+      {roster.length > room && <T color={C.mute}>{`+ ${roster.length - room} more`}</T>}
+    </Box>
+  )
+}
+
 export function Inspector({ ui, C, T, stats, open, width }: Section & { stats: Stats; open: Inspect; width: number }) {
   const { Box } = ui
   if (open === null) return null
+  if (open === 'files' && stats.files.length > 0) return <Heat ui={ui} C={C} T={T} stats={stats} width={width} />
   const { rows, more } = inspected(stats, open)
   if (rows.length === 0) return <T color={C.mute}>Calls from before this update were not recorded</T>
   return (

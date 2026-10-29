@@ -6,6 +6,7 @@ import { atom, read, update } from 'claude-code'
 
 import type { LogLine, Mark, Stats, TurnRecord } from '../../types'
 import { PROMPT_KIND, describeCall, failureOf, isCall, isFromPerson, isRepeatPrompt, promptLine, tagOf } from '../domain/calls'
+import { warmed } from '../domain/heat'
 import { DANGER_STEP, FAILURE_FLOOR, threatName, threatOf } from '../domain/threat'
 import { TOOLS, toolKind } from '../domain/tools'
 import type { ToolKind } from '../domain/tools'
@@ -51,7 +52,7 @@ export function installTelemetry(on: On, ctx: Context): void {
     const id = e.tool_use_id
     const agent = agents.numberOf(e.agentId)
     surfaces.callStarted(id, kind)
-    agents.callStarted(agent, Date.now())
+    agents.callStarted(agent, Date.now(), kind, detail)
     scene.toolStarted(kind, tag)
     const blip = hud.addBlip(kind, tag, scene.now(), agent)
     // The command itself, not the description given for it: a calm description can hide a rm -rf.
@@ -111,6 +112,7 @@ async function setThreat($: EngineInterface, ctx: Context, level: number): Promi
 
 function tally(s: Stats, kind: ToolKind, isFailed: boolean, path: unknown, mark: Mark): Stats {
   const isEdit = kind === 'edit'
+  const isWarm = !isFailed && typeof path === 'string' && (isEdit || kind === 'read')
   const isNewFile = isEdit && typeof path === 'string' && !s.files.includes(path)
   const edited = s.edited ?? []
   const failed = s.failed ?? []
@@ -118,6 +120,7 @@ function tally(s: Stats, kind: ToolKind, isFailed: boolean, path: unknown, mark:
     ...s,
     ops: s.ops + 1,
     kinds: { ...s.kinds, [kind]: (s.kinds?.[kind] ?? 0) + 1 },
+    heat: isWarm ? warmed(s.heat ?? {}, path, isEdit ? 'e' : 'r') : s.heat,
     edits: s.edits + (isEdit && !isFailed ? 1 : 0),
     errors: s.errors + (isFailed ? 1 : 0),
     files: isNewFile ? [...s.files, path] : s.files,

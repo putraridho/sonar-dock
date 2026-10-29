@@ -2,11 +2,21 @@
 
 What changed in each version of Sonar Dock, newest first.
 
+## 0.8.0 — 2026-10-29
+
+Heat, a roster, and charts in time.
+
+- File heat: the files total opens a chart of the files edited, hottest first (edits weigh twice what reads do), each with a bar of its edits then its reads, and the counts.
+- An Agents section in the pane lists each subagent while any have run: working or idle, how many calls it has made, and its latest, the working ones first.
+- Gantt charts: a date ruler, then each task under its section as a bar placed in time; `after` chains, durations, done tasks dimmed, critical ones in red, milestones as diamonds. Dates in `YYYY-MM-DD`; other date formats stay as code.
+- Timelines: a dot per period on a spine, its events beside it, each section a dotted rule.
+- The 0.7.2 notes name `/reload-plugins` correctly.
+
 ## 0.7.2 — 2026-10-29
 
 The watch counts from the first contact.
 
-- The debrief's time on watch no longer reads 0m after `/plugin` reloads in a session that began before 0.7.1: it counts from the oldest call on record whenever that is earlier than the start kept.
+- The debrief's time on watch no longer reads 0m after `/reload-plugins` in a session that began before 0.7.1: it counts from the oldest call on record whenever that is earlier than the start kept.
 
 ## 0.7.1 — 2026-10-29
 

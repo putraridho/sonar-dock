@@ -26,6 +26,8 @@ export type Stats = {
   /** Calls by tool kind, and the highest threat level reached (absent in stats from before 0.7.0). */
   kinds?: Record<string, number>
   peak?: number
+  /** Per file path, how often it was edited and read (absent in stats from before 0.8.0). */
+  heat?: Record<string, { e: number; r: number }>
   /** When the session began (absent in stats from before 0.7.1). */
   startedAt?: number
   turnStartedAt: number | null
